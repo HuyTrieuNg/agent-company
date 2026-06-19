@@ -1,4 +1,4 @@
-# Gemini Chatbot
+# Agent Company
 
 A full-stack chatbot powered by **Google Gemini**, built with **FastAPI** (backend) and **Next.js** (frontend).
 
