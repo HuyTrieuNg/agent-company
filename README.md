@@ -76,7 +76,8 @@ Docs at: `http://localhost:8000/docs`
 
 ```bash
 cd frontend
-pnpm dev
+npm install
+npm run dev
 ```
 
 App available at: `http://localhost:3000`
