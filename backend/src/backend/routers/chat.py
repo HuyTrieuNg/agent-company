@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from ..models import ChatMessage, ChatRequest, ChatResponse
-from ..gemini_service import get_gemini_response
+from ..ollama_service import get_ollama_response
 
 router = APIRouter(prefix="/api/chat", tags=["chat"])
 
@@ -8,11 +8,11 @@ router = APIRouter(prefix="/api/chat", tags=["chat"])
 @router.post("", response_model=ChatResponse)
 async def chat(request: ChatRequest) -> ChatResponse:
     """
-    Send a message to Gemini and receive a reply.
+    Send a message to Ollama and receive a reply.
     The client passes the conversation history to maintain context.
     """
     try:
-        reply = await get_gemini_response(request.message, request.history)
+        reply = await get_ollama_response(request.message, request.history)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 

@@ -1,0 +1,26 @@
+[
+  {
+    "id": "cafef",
+    "name": "CafeF chứng khoáng",
+    "base_url": "https://cafef.vn/thi-truong-chung-khoan.chn",
+    "category": "economics",
+    "language": "vi",
+    "priority": 1
+  },
+  {
+    "id": "tuoi_tre_chung_khoang",
+    "name": "Tuổi Trẻ Chứng Khoáng",
+    "base_url": "https://tuoitre.vn/chung-khoan.htm",
+    "category": "economics",
+    "language": "vi",
+    "priority": 2
+  },
+  {
+    "id": "vietstock",
+    "name": "Vietstock",
+    "base_url": "https://vietstock.vn",
+    "category": "economics",
+    "language": "vi",
+    "priority": 3
+  }
+]

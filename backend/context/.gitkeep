@@ -1,0 +1,3 @@
+# Context directory for Research Agent sessions
+# Each session gets its own subdirectory: context/{session_id}/
+# Files: sources.md, articles.md, report.md
