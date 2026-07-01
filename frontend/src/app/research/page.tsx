@@ -6,7 +6,7 @@ import {
   startResearch,
   getResearchResult,
   streamResearchProgress,
-  followupResearch,
+  streamFollowup,
 } from "@/lib/sources-api";
 import type { ResearchSession } from "@/lib/sources-api";
 
@@ -52,7 +52,8 @@ function isFollowUp(prevQuery: string, newQuery: string): boolean {
 
 type FollowUpQA = {
   question: string;
-  answer: string | null; // null = loading
+  answer: string | null; // null = loading, "" = streaming in progress
+  streaming?: boolean;   // true while tokens are arriving
 };
 
 type ResearchEntry = {
@@ -216,41 +217,66 @@ export default function ResearchPage() {
       isFollowUp(lastEntry.query, query)
     ) {
       const lastIdx = entries.length - 1;
-      // Append a follow-up Q&A to the last entry
+      const followUpIdx = lastEntry.followUps.length;
+
+      // Append a follow-up placeholder (streaming = true, answer = "")
       setEntries((prev) => {
         const next = [...prev];
         next[lastIdx] = {
           ...next[lastIdx],
-          followUps: [...next[lastIdx].followUps, { question: query, answer: null }],
+          followUps: [
+            ...next[lastIdx].followUps,
+            { question: query, answer: "", streaming: true },
+          ],
         };
         return next;
       });
       setLoading(true);
-      const followUpIdx = lastEntry.followUps.length; // index in this entry's followUps
 
-      try {
-        const { answer } = await followupResearch(lastEntry.sessionId, query);
-        setEntries((prev) => {
-          const next = [...prev];
-          const fups = [...next[lastIdx].followUps];
-          fups[followUpIdx] = { question: query, answer };
-          next[lastIdx] = { ...next[lastIdx], followUps: fups };
-          return next;
-        });
-      } catch (err) {
-        setEntries((prev) => {
-          const next = [...prev];
-          const fups = [...next[lastIdx].followUps];
-          fups[followUpIdx] = {
-            question: query,
-            answer: `❌ Lỗi: ${err instanceof Error ? err.message : "Không thể trả lời."}`,
-          };
-          next[lastIdx] = { ...next[lastIdx], followUps: fups };
-          return next;
-        });
-      } finally {
-        setLoading(false);
-      }
+      cleanupRef.current = streamFollowup(
+        lastEntry.sessionId,
+        query,
+        // onToken — append each token to answer
+        (token) => {
+          setEntries((prev) => {
+            const next = [...prev];
+            const fups = [...next[lastIdx].followUps];
+            fups[followUpIdx] = {
+              ...fups[followUpIdx],
+              answer: (fups[followUpIdx].answer ?? "") + token,
+              streaming: true,
+            };
+            next[lastIdx] = { ...next[lastIdx], followUps: fups };
+            return next;
+          });
+        },
+        // onDone
+        (fullAnswer) => {
+          setEntries((prev) => {
+            const next = [...prev];
+            const fups = [...next[lastIdx].followUps];
+            fups[followUpIdx] = { question: query, answer: fullAnswer, streaming: false };
+            next[lastIdx] = { ...next[lastIdx], followUps: fups };
+            return next;
+          });
+          setLoading(false);
+        },
+        // onError
+        (msg) => {
+          setEntries((prev) => {
+            const next = [...prev];
+            const fups = [...next[lastIdx].followUps];
+            fups[followUpIdx] = {
+              question: query,
+              answer: `❌ Lỗi: ${msg}`,
+              streaming: false,
+            };
+            next[lastIdx] = { ...next[lastIdx], followUps: fups };
+            return next;
+          });
+          setLoading(false);
+        }
+      );
       return;
     }
 
@@ -484,7 +510,7 @@ export default function ResearchPage() {
                         💬
                       </div>
                       <div className="flex-1 rounded-2xl rounded-bl-sm border border-white/8 bg-white/4 px-4 py-3 text-sm leading-[1.7] backdrop-blur-md">
-                        {fup.answer === null ? (
+                        {fup.answer === null || (fup.streaming && !fup.answer) ? (
                           <div className="flex items-center gap-2.5">
                             <SpinnerIcon />
                             <span className="text-[13px] text-slate-500">
@@ -493,7 +519,10 @@ export default function ResearchPage() {
                           </div>
                         ) : (
                           <div className="text-slate-100">
-                            <Markdown content={fup.answer} />
+                            <Markdown content={fup.answer ?? ""} />
+                            {fup.streaming && (
+                              <span className="inline-block h-4 w-0.5 animate-blink bg-emerald-400 ml-0.5 align-middle" />
+                            )}
                           </div>
                         )}
                       </div>

@@ -119,17 +119,101 @@ export async function getResearchResult(sessionId: string): Promise<ResearchSess
   return handleResponse<ResearchSession>(res);
 }
 
-export async function followupResearch(
+/**
+ * Stream a follow-up answer via SSE.
+ * Calls /api/research/{sessionId}/followup/stream (POST).
+ *
+ * @param sessionId  - Research session ID
+ * @param query      - Follow-up question
+ * @param onToken    - Called with each streamed text token
+ * @param onDone     - Called when streaming is complete (passes full answer)
+ * @param onError    - Called on error
+ * @returns Cleanup function to abort the stream
+ */
+export function streamFollowup(
   sessionId: string,
-  query: string
-): Promise<{ answer: string; session_id: string }> {
-  const res = await fetch(`${API_URL}/api/research/${sessionId}/followup`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify({ query }),
-  });
-  return handleResponse<{ answer: string; session_id: string }>(res);
+  query: string,
+  onToken: (token: string) => void,
+  onDone: (fullAnswer: string) => void,
+  onError: (msg: string) => void
+): () => void {
+  const controller = new AbortController();
+  let aborted = false;
+  let fullAnswer = "";
+
+  (async () => {
+    try {
+      const res = await fetch(
+        `${API_URL}/api/research/${sessionId}/followup/stream`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify({ query }),
+          signal: controller.signal,
+        }
+      );
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        if (!aborted) onError(err?.detail ?? `HTTP ${res.status}`);
+        return;
+      }
+
+      if (!res.body) {
+        if (!aborted) onError("No response body");
+        return;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data:")) continue;
+          const raw = line.slice(5).trim();
+          if (!raw) continue;
+          try {
+            const data = JSON.parse(raw);
+            if (data.error) {
+              if (!aborted) onError(data.error);
+              return;
+            }
+            if (data.token) {
+              fullAnswer += data.token;
+              if (!aborted) onToken(data.token);
+            }
+            if (data.done) {
+              if (!aborted) onDone(fullAnswer);
+              return;
+            }
+          } catch {
+            // ignore parse errors
+          }
+        }
+      }
+
+      if (!aborted) onDone(fullAnswer);
+    } catch (err: unknown) {
+      if (!aborted && (err as { name?: string })?.name !== "AbortError") {
+        onError(err instanceof Error ? err.message : "Stream error");
+      }
+    }
+  })();
+
+  return () => {
+    aborted = true;
+    controller.abort();
+  };
 }
+
 
 
 export function streamResearchProgress(

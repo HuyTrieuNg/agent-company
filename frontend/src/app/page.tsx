@@ -84,11 +84,11 @@ export default function ChatPage() {
       {/* ── Header ── */}
       <header className="flex shrink-0 items-center gap-3 border-b border-white/8 px-5 py-3.5">
         <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#8b5cf6] to-[#06b6d4] text-base shadow-[0_2px_12px_rgba(139,92,246,0.35)] animate-pulse-glow">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-[#8b5cf6] to-[#06b6d4] text-base shadow-[0_2px_12px_rgba(139,92,246,0.35)] animate-pulse-glow">
             ✦
           </div>
           <div>
-            <p className="text-[15px] font-bold bg-gradient-to-r from-white via-slate-200 to-[#8b5cf6] bg-clip-text text-transparent tracking-tight">
+            <p className="text-[15px] font-bold bg-linear-to-r from-white via-slate-200 to-[#8b5cf6] bg-clip-text text-transparent tracking-tight">
               Chat AI
             </p>
             <p className="text-[11px] text-slate-500">Powered by Gemini</p>
@@ -150,11 +150,11 @@ export default function ChatPage() {
                 id={`msg-${i}`}
                 className={`flex gap-3 animate-fade-up ${msg.role === "user" ? "flex-row-reverse" : ""}`}
               >
-                <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm ${msg.role === "model" ? "bg-gradient-to-br from-[#8b5cf6] to-[#06b6d4] shadow-[0_2px_12px_rgba(139,92,246,0.35)]" : "border border-white/8 bg-white/7"}`}>
+                <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm ${msg.role === "model" ? "bg-linear-to-br from-[#8b5cf6] to-[#06b6d4] shadow-[0_2px_12px_rgba(139,92,246,0.35)]" : "border border-white/8 bg-white/7"}`}>
                   {msg.role === "model" ? "✦" : "👤"}
                 </div>
 
-                <div className={`max-w-[74%] rounded-2xl px-4 py-3 text-sm leading-[1.7] break-words ${msg.role === "user" ? "rounded-br-sm bg-gradient-to-br from-[#8b5cf6] to-[#6d28d9] text-white" : "rounded-bl-sm border border-white/8 bg-white/5 text-slate-100 backdrop-blur-md"}`}>
+                <div className={`max-w-[74%] rounded-2xl px-4 py-3 text-sm leading-[1.7] wrap-break-word ${msg.role === "user" ? "rounded-br-sm bg-linear-to-br from-[#8b5cf6] to-[#6d28d9] text-white" : "rounded-bl-sm border border-white/8 bg-white/5 text-slate-100 backdrop-blur-md"}`}>
                   {msg.role === "model" ? (
                     <Markdown content={msg.content} />
                   ) : (
@@ -166,7 +166,7 @@ export default function ChatPage() {
 
             {loading && (
               <div className="flex gap-3 animate-fade-up" id="typing-indicator">
-                <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#8b5cf6] to-[#06b6d4] text-sm shadow-[0_2px_12px_rgba(139,92,246,0.35)]">✦</div>
+                <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-linear-to-br from-[#8b5cf6] to-[#06b6d4] text-sm shadow-[0_2px_12px_rgba(139,92,246,0.35)]">✦</div>
                 <div className="max-w-[74%] rounded-2xl rounded-bl-sm border border-white/8 bg-white/5 px-4 py-3 text-sm leading-[1.7] backdrop-blur-md">
                   <div className="flex items-center gap-1.25 py-0.5">
                     <span className="h-1.5 w-1.5 rounded-full bg-[#8b5cf6] animate-blink" />
@@ -208,7 +208,7 @@ export default function ChatPage() {
           <button
             type="submit"
             id="send-button"
-            className="flex h-9.5 w-9.5 shrink-0 cursor-pointer items-center justify-center rounded-lg border-none bg-gradient-to-br from-[#8b5cf6] to-[#6d28d9] text-white transition-[transform,box-shadow,opacity] duration-180 hover:enabled:scale-[1.06] hover:enabled:shadow-[0_4px_18px_rgba(139,92,246,0.45)] active:enabled:scale-[0.95] disabled:cursor-not-allowed disabled:opacity-35"
+            className="flex h-9.5 w-9.5 shrink-0 cursor-pointer items-center justify-center rounded-lg border-none bg-linear-to-br from-[#8b5cf6] to-[#6d28d9] text-white transition-[transform,box-shadow,opacity] duration-180 hover:enabled:scale-[1.06] hover:enabled:shadow-[0_4px_18px_rgba(139,92,246,0.45)] active:enabled:scale-[0.95] disabled:cursor-not-allowed disabled:opacity-35"
             disabled={!input.trim() || loading}
             aria-label="Gửi tin nhắn"
           >

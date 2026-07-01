@@ -24,7 +24,7 @@ export default function RootLayout({
         <div className="flex h-screen overflow-hidden">
           <Sidebar />
           {/* Main content — offset by sidebar width */}
-          <div className="flex flex-1 flex-col overflow-hidden pl-[60px] md:pl-[200px]">
+          <div className="flex flex-1 flex-col overflow-hidden pl-15 md:pl-50">
             {children}
           </div>
         </div>

@@ -126,54 +126,66 @@ async def start_research(
     return {"session_id": session_id, "status": "running", "query": request.query}
 
 
-@router.post("/research/{session_id}/followup")
-async def followup_research(session_id: str, request: FollowUpRequest):
-    """Answer a follow-up question using the existing session's report as context."""
-    from ..ollama_service import generate_ollama_content
-    from ..config import settings
-    import os
+@router.post("/research/{session_id}/followup/stream")
+async def followup_research_stream(session_id: str, request: FollowUpRequest):
+    """Stream a follow-up answer via SSE, synchronized with LangGraph.
+    
+    This runs a background LangGraph (followup_graph) which manages loading the context
+    and generating the answer (with Gemini or Ollama). Tokens are sent to a queue
+    and yielded via SSE.
+    """
+    import asyncio
+    import json
+    from ..agents.research.followup.followup_graph import followup_graph
 
-    async with AsyncSessionLocal() as db_session:
-        rs = await get_research_session(db_session, session_id)
+    queue = asyncio.Queue()
 
-    if not rs:
-        raise HTTPException(status_code=404, detail="Session not found")
-    if rs.status != "done" or not rs.result_md:
-        raise HTTPException(status_code=400, detail="Session not ready")
-
-    # Try to get full article context from disk first
-    context_path = os.path.join(settings.context_dir, session_id, "articles.md")
-    context_content = ""
-    if os.path.exists(context_path):
+    async def run_graph():
         try:
-            with open(context_path, "r", encoding="utf-8") as f:
-                context_content = f.read()
-        except Exception:
-            pass
+            initial_state = {
+                "session_id": session_id,
+                "query": request.query,
+                "report_content": "",
+                "context_content": "",
+                "answer": "",
+                "error": None,
+                "stream_queue": queue
+            }
+            # Execute the LangGraph workflow
+            async for _ in followup_graph.astream(initial_state):
+                pass
+        except Exception as e:
+            await queue.put({"error": str(e)})
 
-    system_prompt = """Bạn là chuyên gia phân tích kinh tế. Dựa trên báo cáo nghiên cứu và bài báo đã thu thập,
-hãy trả lời câu hỏi của người dùng một cách chính xác, súc tích bằng tiếng Việt.
-Chỉ sử dụng thông tin từ ngữ cảnh được cung cấp. Nếu không có thông tin, hãy nói rõ."""
+    # Start graph execution in the background
+    asyncio.create_task(run_graph())
 
-    user_prompt = (
-        f"=== BÁO CÁO NGHIÊN CỨU ===\n{rs.result_md}\n\n"
-        + (f"=== BÀI BÁO GỐC ===\n{context_content[:6000]}\n\n" if context_content else "")
-        + f"=== CÂU HỎI ===\n{request.query}"
+    async def event_generator():
+        while True:
+            try:
+                msg = await asyncio.wait_for(queue.get(), timeout=15.0)
+            except asyncio.TimeoutError:
+                # Keep-alive ping to prevent 503/504 proxy timeouts
+                yield ": ping\n\n"
+                continue
+
+            if "error" in msg:
+                yield f"data: {json.dumps({'error': msg['error']})}\n\n"
+                break
+            if msg.get("done"):
+                yield f"data: {json.dumps({'done': True})}\n\n"
+                break
+            if "token" in msg:
+                yield f"data: {json.dumps({'token': msg['token']})}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
     )
-
-    try:
-        answer = await generate_ollama_content(
-            model=settings.research_model_name,
-            contents=user_prompt,
-            system_instruction=system_prompt,
-            json_format=False,
-            num_predict=2048,
-            num_ctx=8192,
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Model error: {str(e)}")
-
-    return {"answer": answer, "session_id": session_id}
 
 
 
