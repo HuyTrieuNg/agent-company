@@ -1,7 +1,11 @@
 """Gemini API service for content generation using google-genai SDK."""
 import logging
+from typing import TYPE_CHECKING
 from google import genai
 from google.genai import types
+
+if TYPE_CHECKING:
+    from .models import ChatMessage
 
 logger = logging.getLogger(__name__)
 
@@ -17,23 +21,51 @@ def get_gemini_client(api_key: str) -> genai.Client:
     return _client
 
 
+def _build_contents(
+    history: list["ChatMessage"] | None,
+    message: str,
+) -> list[types.Content]:
+    """
+    Chuyển đổi history + message mới thành list[types.Content] theo Gemini format.
+
+    Gemini chỉ nhận role 'user' và 'model'.
+    Lưu ý: turns phải xen kẽ user/model và bắt đầu bằng 'user'.
+    """
+    contents: list[types.Content] = []
+
+    if history:
+        for msg in history:
+            role = "model" if msg.role == "model" else "user"
+            contents.append(
+                types.Content(role=role, parts=[types.Part(text=msg.content)])
+            )
+
+    # Thêm tin nhắn mới của user
+    contents.append(
+        types.Content(role="user", parts=[types.Part(text=message)])
+    )
+    return contents
+
+
 async def generate_gemini_content(
     api_key: str,
     model: str,
-    contents: str,
+    contents: str | list["ChatMessage"],
     system_instruction: str | None = None,
     max_output_tokens: int = 8192,
     temperature: float = 0.2,
+    history: list["ChatMessage"] | None = None,
 ) -> str:
     """Generate text content via Gemini API (async).
 
     Args:
         api_key:            Gemini API key.
         model:              Model name, e.g. ``"gemini-2.0-flash"``.
-        contents:           User prompt string.
+        contents:           User prompt string HOẶC list ChatMessage (history + message cuối).
         system_instruction: Optional system prompt.
         max_output_tokens:  Maximum tokens in the response.
         temperature:        Sampling temperature.
+        history:            (Optional) Nếu truyền riêng, sẽ dùng cùng contents (str) làm message mới.
 
     Returns:
         Generated text, or an empty string on failure.
@@ -46,10 +78,21 @@ async def generate_gemini_content(
         temperature=temperature,
     )
 
-    logger.info(f"[Gemini] Querying model {model} ...")
+    # Xây dựng contents đúng format multi-turn
+    if history is not None and isinstance(contents, str):
+        # Truyền history riêng + message mới là string — đây là path chính cho chat
+        gemini_contents = _build_contents(history, contents)
+    elif isinstance(contents, list) and len(contents) > 0:
+        # contents là list ChatMessage — tất cả trừ phần tử cuối là history, cuối là user msg mới
+        gemini_contents = _build_contents(contents[:-1], contents[-1].content)
+    else:
+        # contents là string thuần (không có history) — dùng cho query rewrite
+        gemini_contents = contents  # type: ignore[assignment]
+
+    logger.info(f"[Gemini] Querying model {model} (turns={len(gemini_contents) if isinstance(gemini_contents, list) else 1})...")
     response = await client.aio.models.generate_content(
         model=model,
-        contents=contents,
+        contents=gemini_contents,
         config=config,
     )
     return response.text or ""

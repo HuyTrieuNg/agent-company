@@ -10,10 +10,10 @@ import { sendMessage, ChatMessage } from "@/lib/api";
 import Markdown from "@/components/Markdown";
 
 const SUGGESTIONS = [
+  "Tóm tắt tin tức kinh tế hôm nay",
+  "Tìm các bài báo về giá vàng trên CafeF",
   "Phân tích tình hình lãi suất ngân hàng hiện nay",
   "Giải thích khái niệm AI là gì?",
-  "Viết hàm Python sắp xếp danh sách",
-  "Tóm tắt lịch sử kinh tế Việt Nam",
 ];
 
 function SendIcon() {
@@ -122,9 +122,7 @@ export default function ChatPage() {
             </h1>
             <p className="m-0 max-w-xs text-sm leading-[1.65] text-slate-500">
               Tôi là trợ lý AI thông minh được vận hành bởi Google Gemini.
-              Hãy hỏi tôi bất kỳ điều gì hoặc dùng tính năng{" "}
-              <a href="/research" className="text-[#a78bfa] hover:text-[#c4b5fd]">Research</a>{" "}
-              để đọc tin tức kinh tế.
+              Hãy hỏi tôi bất kỳ điều gì hoặc yêu cầu tìm kiếm tin tức trên hệ thống.
             </p>
             <div className="mt-2 flex flex-wrap justify-center gap-2">
               {SUGGESTIONS.map((s) => (

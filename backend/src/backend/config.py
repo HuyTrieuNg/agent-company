@@ -11,10 +11,11 @@ class Settings(BaseSettings):
     model_name: str = "gemma3:4b"
     ollama_base_url: str = "http://localhost:11434"
 
-    # Research Agent
-    research_model_name: str = "gemma3:4b"
-    # Gemini model used for summarization when GEMINI_API_KEY is set
-    gemini_summarizer_model: str = "gemini-2.5-flash"
+    # Qdrant Database
+    qdrant_url: str = ""
+    qdrant_api_key: str = ""
+    qdrant_collection: str = "articles"
+
 
     cache_ttl_hours: int = 6
     max_sources_per_query: int = 2
