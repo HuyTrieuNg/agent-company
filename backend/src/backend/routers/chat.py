@@ -45,7 +45,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
             logger.info(f"Using Gemini for chat generation (history turns: {len(request.history)}).")
             reply = await generate_gemini_content(
                 api_key=settings.gemini_api_key,
-                model="gemini-2.5-flash",
+                model=settings.gemini_model_chat,
                 contents=request.message,   # tin nhắn mới của user
                 history=request.history,     # lịch sử hội thoại dạng list
                 system_instruction=system_instruction,

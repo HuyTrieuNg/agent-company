@@ -1,4 +1,5 @@
 """Gemini API service for content generation using google-genai SDK."""
+import asyncio
 import logging
 from typing import TYPE_CHECKING
 from google import genai
@@ -10,6 +11,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 _client: genai.Client | None = None
+
+# Hard timeout for a single Gemini API call (seconds)
+GEMINI_CALL_TIMEOUT = 30.0
 
 
 def get_gemini_client(api_key: str) -> genai.Client:
@@ -69,6 +73,10 @@ async def generate_gemini_content(
 
     Returns:
         Generated text, or an empty string on failure.
+
+    Raises:
+        asyncio.TimeoutError: If the API call exceeds GEMINI_CALL_TIMEOUT seconds.
+        Exception: On API errors (including 429 rate-limit).
     """
     client = get_gemini_client(api_key)
 
@@ -76,6 +84,10 @@ async def generate_gemini_content(
         system_instruction=system_instruction,
         max_output_tokens=max_output_tokens,
         temperature=temperature,
+        # Tắt Automatic Function Calling để tránh SDK tự retry vô hạn khi gặp 429
+        automatic_function_calling=types.AutomaticFunctionCallingConfig(
+            disable=True,
+        ),
     )
 
     # Xây dựng contents đúng format multi-turn
@@ -90,9 +102,33 @@ async def generate_gemini_content(
         gemini_contents = contents  # type: ignore[assignment]
 
     logger.info(f"[Gemini] Querying model {model} (turns={len(gemini_contents) if isinstance(gemini_contents, list) else 1})...")
-    response = await client.aio.models.generate_content(
-        model=model,
-        contents=gemini_contents,
-        config=config,
-    )
+
+    try:
+        response = await asyncio.wait_for(
+            client.aio.models.generate_content(
+                model=model,
+                contents=gemini_contents,
+                config=config,
+            ),
+            timeout=GEMINI_CALL_TIMEOUT,
+        )
+    except asyncio.TimeoutError:
+        logger.error(
+            f"[Gemini] Request to {model} timed out after {GEMINI_CALL_TIMEOUT}s. "
+            "Check network connectivity or Gemini API status."
+        )
+        raise
+    except Exception as exc:
+        # Log rõ lỗi 429 / quota exceeded để dễ debug
+        err_str = str(exc)
+        if "429" in err_str or "RESOURCE_EXHAUSTED" in err_str:
+            logger.error(
+                f"[Gemini] Rate limit / quota exceeded on model '{model}'. "
+                "Consider switching model or waiting before retrying. "
+                f"Detail: {err_str[:300]}"
+            )
+        else:
+            logger.error(f"[Gemini] API error on model '{model}': {exc}", exc_info=True)
+        raise
+
     return response.text or ""

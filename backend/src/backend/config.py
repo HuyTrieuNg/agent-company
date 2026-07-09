@@ -4,6 +4,10 @@ import os
 
 class Settings(BaseSettings):
     gemini_api_key: str = ""
+    # Model dùng cho query rewriting / structured extraction (nhanh, rẻ token)
+    gemini_model_fast: str = "gemini-2.5-flash"
+    # Model dùng cho chat response (có thể dùng model mạnh hơn)
+    gemini_model_chat: str = "gemini-3.5-flash"
     allowed_origins: list[str] = [
         "http://localhost:3000",
         "https://retributively-iodometric-max.ngrok-free.dev"
@@ -15,7 +19,6 @@ class Settings(BaseSettings):
     qdrant_url: str = ""
     qdrant_api_key: str = ""
     qdrant_collection: str = "articles"
-
 
     cache_ttl_hours: int = 6
     max_sources_per_query: int = 2
