@@ -12,3 +12,5 @@ wheels/
 
 /context/*
 !/context/.gitkeep
+
+/debug_files

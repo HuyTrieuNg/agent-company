@@ -34,6 +34,7 @@ function ResetIcon() {
 
 export default function ChatPage() {
   const [history, setHistory] = useState<ChatMessage[]>([]);
+  const [cachedArticles, setCachedArticles] = useState<Record<string, unknown>[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -62,8 +63,12 @@ export default function ChatPage() {
     setHistory((prev) => [...prev, { role: "user", content: msg }]);
 
     try {
-      const res = await sendMessage(msg, history);
+      const res = await sendMessage(msg, history, cachedArticles);
       setHistory(res.history);
+      // Lưu lại articles đã retrieve để dùng cho câu hỏi followup
+      if (res.cached_articles?.length) {
+        setCachedArticles(res.cached_articles);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Đã xảy ra lỗi.");
       setHistory((prev) => prev.slice(0, -1));
@@ -104,7 +109,7 @@ export default function ChatPage() {
           <button
             id="clear-chat-btn"
             className="flex h-8 w-8 items-center justify-center rounded-[9px] border border-white/8 bg-transparent text-slate-600 transition-colors duration-200 hover:border-white/15 hover:bg-white/5 hover:text-slate-50 cursor-pointer"
-            onClick={() => { setHistory([]); setError(null); }}
+            onClick={() => { setHistory([]); setCachedArticles([]); setError(null); }}
             title="Xóa hội thoại"
           >
             <ResetIcon />
