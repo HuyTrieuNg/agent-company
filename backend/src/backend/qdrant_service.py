@@ -5,7 +5,9 @@ import re
 from datetime import datetime, timedelta
 from sentence_transformers import SentenceTransformer
 from qdrant_client import QdrantClient
-from qdrant_client.models import Filter, FieldCondition, MatchValue, MatchAny, PayloadSchemaType
+from qdrant_client.models import (
+    Filter, FieldCondition, MatchValue, MatchAny, PayloadSchemaType, ScrollRequest
+)
 
 from .config import settings
 from .gemini_service import generate_gemini_content, GEMINI_FAST_TIMEOUT
@@ -467,6 +469,34 @@ async def search_articles(
             f"(filter: site='{site}', date={date_from}~{date_to}, tags={tags})"
         )
 
+        # ---------------------------------------------------------------
+        # FALLBACK: Nếu không tìm được kết quả nào với filter hiện tại,
+        # thử lại với filter nới lỏng dần để gợi ý cho người dùng.
+        # ---------------------------------------------------------------
+        if not candidates:
+            logger.info(
+                "[RAG] Strict query returned 0 results — attempting relaxed fallback search."
+            )
+            fallback_results = await _relaxed_fallback_search(
+                query_vector=query_vector,
+                semantic_query=semantic_query,
+                site=site,
+                tags=tags,
+                limit=limit,
+                rerank=rerank,
+            )
+            if fallback_results:
+                # Đánh dấu đây là kết quả gợi ý (fallback), không phải kết quả chính xác
+                for chunk in fallback_results:
+                    chunk["_is_fallback"] = True
+                logger.info(
+                    f"[RAG] Fallback search returned {len(fallback_results)} suggestions."
+                )
+                return fallback_results, True
+            # Hoàn toàn không có kết quả gì
+            logger.info("[RAG] No results found even after relaxed fallback.")
+            return [], True
+
         # 7. Rerank candidates with Cross-Encoder (runs on CPU in background thread)
         # score_threshold=0.0: chỉ giữ bài cross-encoder cho điểm dương (thực sự liên quan)
         if rerank and len(candidates) > 1:
@@ -483,8 +513,220 @@ async def search_articles(
         if tags and len(results) > 1:
             results = _heuristic_rerank(results, tags, boost_weight=0.15)
 
+        # 9. Context enrichment: bổ sung đầy đủ các chunk của cùng bài báo
+        #    để LLM nhận được ngữ cảnh hoàn chỉnh, không bị cắt giữa chừng.
+        if results:
+            results = await _enrich_with_full_article_chunks(
+                top_chunks=results,
+                article_limit=limit,
+            )
+
         return results, True
 
     except Exception as e:
         logger.error(f"Error during Qdrant search: {e}", exc_info=True)
         return [], False
+
+
+async def _enrich_with_full_article_chunks(
+    top_chunks: list[dict],
+    article_limit: int = 5,
+) -> list[dict]:
+    """
+    Làm giàu kết quả top-ranked chunks bằng cách lấy TẤT CẢ các chunk
+    của các bài báo đã được chọn, sắp xếp theo chunk_index.
+
+    Mục đích:
+    - Top chunks xác định BÀI BÁO nào liên quan nhất (ranking bằng embedding + rerank).
+    - Sau khi xác định bài, ta lấy đầy đủ nội dung bài đó (tất cả chunks)
+      để LLM có ngữ cảnh hoàn chỉnh thay vì chỉ thấy một phần nhỏ.
+
+    Args:
+        top_chunks:    Danh sách chunk đã rerank, mỗi chunk là payload dict.
+        article_limit: Số bài báo tối đa để enrich (giới hạn theo số bài, không phải chunk).
+
+    Returns:
+        Danh sách đầy đủ chunks, nhóm theo bài báo, mỗi bài sắp theo chunk_index.
+    """
+    if not qdrant_client or not top_chunks:
+        return top_chunks
+
+    # Thu thập các url_hash duy nhất từ top chunks (giữ thứ tự ưu tiên)
+    seen_hashes: list[str] = []
+    hash_to_chunks: dict[str, list[dict]] = {}
+    for chunk in top_chunks:
+        url_hash = chunk.get("url_hash", "")
+        if url_hash and url_hash not in seen_hashes:
+            seen_hashes.append(url_hash)
+            hash_to_chunks[url_hash] = []
+        if not url_hash:
+            # Chunk không có url_hash → giữ nguyên vị trí
+            hash_to_chunks.setdefault("__no_hash__", []).append(chunk)
+
+    # Giới hạn số bài enrich
+    hashes_to_enrich = seen_hashes[:article_limit]
+
+    # Với mỗi bài báo, scroll lấy tất cả chunks theo url_hash
+    collection = settings.qdrant_collection
+    for url_hash in hashes_to_enrich:
+        try:
+            scroll_filter = Filter(
+                must=[
+                    FieldCondition(
+                        key="url_hash",
+                        match=MatchValue(value=url_hash)
+                    )
+                ]
+            )
+            scroll_result, _ = qdrant_client.scroll(
+                collection_name=collection,
+                scroll_filter=scroll_filter,
+                limit=50,           # một bài thường < 20 chunks
+                with_payload=True,
+                with_vectors=False,
+            )
+            all_chunks = [pt.payload for pt in scroll_result if pt.payload]
+            # Sắp xếp theo chunk_index để giữ thứ tự tự nhiên của bài
+            all_chunks.sort(key=lambda c: c.get("chunk_index", 0))
+            hash_to_chunks[url_hash] = all_chunks
+            logger.debug(
+                f"[Enrich] url_hash={url_hash[:8]}... → {len(all_chunks)} chunks fetched."
+            )
+        except Exception as e:
+            logger.warning(f"[Enrich] Failed to scroll chunks for url_hash={url_hash}: {e}")
+            # Giữ lại chunk gốc từ top_chunks nếu scroll lỗi
+            hash_to_chunks[url_hash] = [
+                c for c in top_chunks if c.get("url_hash") == url_hash
+            ]
+
+    # Ghép kết quả: mỗi bài một lần, theo thứ tự ưu tiên từ rerank
+    enriched: list[dict] = []
+    for url_hash in hashes_to_enrich:
+        enriched.extend(hash_to_chunks.get(url_hash, []))
+    # Thêm các chunk không có url_hash (nếu có)
+    enriched.extend(hash_to_chunks.get("__no_hash__", []))
+
+    logger.info(
+        f"[Enrich] {len(hashes_to_enrich)} articles enriched: "
+        f"{len(top_chunks)} top chunks → {len(enriched)} full chunks."
+    )
+    return enriched
+
+
+async def _relaxed_fallback_search(
+    query_vector: list[float],
+    semantic_query: str,
+    site: str,
+    tags: list[str],
+    limit: int,
+    rerank: bool,
+) -> list[dict]:
+    """
+    Thực hiện tìm kiếm với filter nới lỏng dần khi query gốc không có kết quả.
+
+    Chiến lược nới lỏng (theo thứ tự):
+      1. Bỏ date filter, giữ site + tags.
+      2. Bỏ date + site filter, chỉ giữ tags.
+      3. Bỏ tất cả filter (semantic search thuần tuý).
+
+    Args:
+        query_vector:    Vector đã embed sẵn.
+        semantic_query:  Câu query dạng ngôn ngữ tự nhiên để rerank.
+        site:            Giá trị site filter gốc (có thể rỗng).
+        tags:            Danh sách tags gốc.
+        limit:           Số kết quả tối đa.
+        rerank:          Có dùng reranking không.
+
+    Returns:
+        Danh sách chunk gợi ý (có thể rỗng nếu hoàn toàn không tìm được gì).
+    """
+    if not qdrant_client:
+        return []
+
+    collection = settings.qdrant_collection
+    retrieval_limit = (limit * 3) if rerank else limit
+
+    # Tạo tag conditions để tái sử dụng
+    tag_conditions: list[FieldCondition] = []
+    if tags and isinstance(tags, list) and len(tags) > 0:
+        all_variants: list[str] = []
+        for t in tags:
+            all_variants.extend(_tag_variants(t))
+        unique_variants = list(dict.fromkeys(v for v in all_variants if v))
+        tag_conditions = [FieldCondition(key="tags", match=MatchAny(any=unique_variants))]
+
+    # Tạo site condition để tái sử dụng
+    site_condition: FieldCondition | None = None
+    if site:
+        site_condition = FieldCondition(key="site", match=MatchValue(value=site))
+
+    # Thứ tự nới lỏng: (must_conditions, should_conditions, label)
+    fallback_strategies = [
+        # 1. Giữ site + tags, bỏ date
+        (
+            [site_condition] if site_condition else [],
+            tag_conditions,
+            "site+tags (no date)",
+        ),
+        # 2. Chỉ giữ tags, bỏ site + date
+        (
+            [],
+            tag_conditions,
+            "tags only (no site, no date)",
+        ),
+        # 3. Không filter gì cả — semantic search thuần tuý
+        (
+            [],
+            [],
+            "no filter (pure semantic)",
+        ),
+    ]
+
+    for must_conds, should_conds, label in fallback_strategies:
+        # Nếu cả must và should đều rỗng và đây là bước cuối, luôn chạy
+        if not must_conds and not should_conds and label != "no filter (pure semantic)":
+            continue  # skip nếu không có điều kiện gì và chưa đến bước cuối
+
+        relaxed_filter = None
+        if must_conds or should_conds:
+            relaxed_filter = Filter(
+                must=must_conds if must_conds else None,
+                should=should_conds if should_conds else None,
+            )
+
+        logger.info(f"[Fallback] Trying relaxed search with strategy: '{label}'")
+        try:
+            response = qdrant_client.query_points(
+                collection_name=collection,
+                query=query_vector,
+                query_filter=relaxed_filter,
+                limit=retrieval_limit,
+                with_payload=True,
+                score_threshold=0.4,  # nới lỏng score threshold so với 0.5 của strict search
+            )
+            candidates = [pt.payload for pt in response.points if pt.payload]
+            logger.info(
+                f"[Fallback] Strategy '{label}' returned {len(candidates)} candidates."
+            )
+            if candidates:
+                # Rerank nếu được bật
+                if rerank and len(candidates) > 1:
+                    results = await rerank_documents(
+                        query=semantic_query,
+                        docs=candidates,
+                        top_k=limit,
+                        score_threshold=0.0,
+                    )
+                else:
+                    results = candidates[:limit]
+                # Enrich với đầy đủ chunks của bài
+                if results:
+                    results = await _enrich_with_full_article_chunks(
+                        top_chunks=results,
+                        article_limit=limit,
+                    )
+                return results
+        except Exception as e:
+            logger.warning(f"[Fallback] Strategy '{label}' failed: {e}")
+
+    return []

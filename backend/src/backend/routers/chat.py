@@ -66,7 +66,11 @@ async def chat(request: ChatRequest) -> ChatResponse:
 
         # 3. Build context string cho system prompt
         context_str = ""
+        is_fallback = False
         if chunks:
+            # Kiểm tra xem kết quả có phải từ fallback (filter nới lỏng) không
+            is_fallback = any(chunk.get("_is_fallback") for chunk in chunks)
+
             context_pieces = []
             for i, chunk in enumerate(chunks, 1):
                 title = chunk.get("article_title", "Không rõ")
@@ -78,12 +82,25 @@ async def chat(request: ChatRequest) -> ChatResponse:
                 )
             context_str = "\n---\n".join(context_pieces)
 
-        system_instruction = (
-            "Bạn là trợ lý ảo thông minh. Hãy trả lời câu hỏi của người dùng dựa vào ngữ cảnh (Context) được cung cấp dưới đây. "
-            "Nếu thông tin không có trong ngữ cảnh, hãy dùng kiến thức của bạn hoặc nói không biết. "
-            "Trích dẫn nguồn (tiêu đề, URL) rõ ràng nếu bạn dùng thông tin từ ngữ cảnh.\n\n"
-            "NGỮ CẢNH:\n" + (context_str if context_str else "Không tìm thấy dữ liệu liên quan.")
-        )
+        if is_fallback:
+            system_instruction = (
+                "Bạn là trợ lý ảo thông minh. "
+                "Câu hỏi của người dùng KHÔNG tìm được kết quả chính xác nào trong cơ sở dữ liệu (do bộ lọc quá gắt). "
+                "Thay vào đó, hệ thống đã tìm được một số bài viết CÓ THỂ LIÊN QUAN (gợi ý):\n"
+                "NGUỒN GỢI Ý:\n" + context_str + "\n\n"
+                "Nhiệm vụ của bạn:\n"
+                "1. THÔNG BÁO rõ ràng cho người dùng rằng KHÔNG tìm được kết quả chính xác.\n"
+                "2. GỢI Ý 2-3 bài viết từ danh sách trên có thể liên quan, kèm tiêu đề và URL.\n"
+                "3. ĐỀ NGHỊ người dùng có thể hỏi thêm theo hướng nào.\n"
+                "4. TUYỆT ĐỐI KHÔNG tự suy diễn hay của mình đưa ra thông tin không có trong nguồn gợi ý trên."
+            )
+        else:
+            system_instruction = (
+                "Bạn là trợ lý ảo thông minh. Hãy trả lời câu hỏi của người dùng dựa vào ngữ cảnh (Context) được cung cấp dưới đây. "
+                "Nếu thông tin không có trong ngữ cảnh, hãy dùng kiến thức của bạn hoặc nói không biết. "
+                "Trích dẫn nguồn (tiêu đề, URL) rõ ràng nếu bạn dùng thông tin từ ngữ cảnh.\n\n"
+                "NGỮ CẢNH:\n" + (context_str if context_str else "Không tìm thấy dữ liệu liên quan.")
+            )
 
         reply = ""
 
