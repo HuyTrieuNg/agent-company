@@ -1,0 +1,38 @@
+{
+    "cafef": [
+        {
+            "Chứng khoán": "https://cafef.vn/thi-truong-chung-khoan.chn"
+        },
+        {
+            "Doanh nghiệp": "https://cafef.vn/doanh-nghiep.chn"
+        },
+        {
+            "Ngân hàng": "https://cafef.vn/tai-chinh-ngan-hang.chn"
+        },
+        {
+            "Tài chính quốc tế": "https://cafef.vn/tai-chinh-quoc-te.chn"
+        }
+    ],
+    "thesaigontimes": [
+        {
+            "Tài chính ngân hàng": "https://thesaigontimes.vn/tai-chinh-ngan-hang/ngan-hang/"
+        },
+        {
+            "Chứng khoán": "https://thesaigontimes.vn/tai-chinh-ngan-hang/chung-khoan"
+        }
+    ],
+    "vneconomy": [
+        {
+            "Tài chính": "https://vneconomy.vn/tai-chinh.htm"
+        },
+        {
+            "Đầu tư": "https://vneconomy.vn/dau-tu.htm"
+        },
+        {
+            "Kinh tế số": "https://vneconomy.vn/kinh-te-so.htm"
+        },
+        {
+            "Thị trường": "https://vneconomy.vn/thi-truong.htm"
+        }
+    ]
+}

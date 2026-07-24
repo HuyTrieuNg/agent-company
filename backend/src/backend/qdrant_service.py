@@ -6,23 +6,52 @@ from datetime import datetime, timedelta
 from sentence_transformers import SentenceTransformer
 from qdrant_client import QdrantClient
 from qdrant_client.models import (
-    Filter, FieldCondition, MatchValue, MatchAny, PayloadSchemaType, ScrollRequest
+    Filter, FieldCondition, MatchValue, MatchAny, PayloadSchemaType, ScrollRequest,
+    SparseVector, Prefetch, FusionQuery, Fusion, VectorParams, Distance, SparseVectorParams
 )
 
 from .config import settings
 from .gemini_service import generate_gemini_content, GEMINI_FAST_TIMEOUT
 from .ollama_service import generate_ollama_content
 from .reranker_service import rerank_documents
+from .sources_registry import sources_registry
 
 logger = logging.getLogger(__name__)
 
-# Initialize SentenceTransformer Model
+# Initialize SentenceTransformer Dense Model
 try:
     logger.info("Initializing SentenceTransformer model 'intfloat/multilingual-e5-small'...")
     embedder = SentenceTransformer("intfloat/multilingual-e5-small")
 except Exception as e:
     logger.error(f"Failed to initialize embedder: {e}")
     embedder = None
+
+# Initialize FastEmbed BM25 Sparse Model (CPU-friendly)
+try:
+    from fastembed import SparseTextEmbedding
+    logger.info("Initializing FastEmbed BM25 sparse embedder 'Qdrant/bm25'...")
+    sparse_embedder = SparseTextEmbedding(model_name="Qdrant/bm25")
+except Exception as e:
+    logger.warning(f"FastEmbed BM25 sparse embedder not available: {e}")
+    sparse_embedder = None
+
+
+def get_sparse_vector(text: str) -> SparseVector | None:
+    """Tạo sparse vector (BM25) từ text cho Qdrant Hybrid Search."""
+    if not sparse_embedder or not text:
+        return None
+    try:
+        embeddings = list(sparse_embedder.embed([text]))
+        if embeddings:
+            emb = embeddings[0]
+            return SparseVector(
+                indices=emb.indices.tolist(),
+                values=emb.values.tolist(),
+            )
+    except Exception as e:
+        logger.warning(f"Error computing sparse vector: {e}")
+    return None
+
 
 # Initialize Qdrant Client
 try:
@@ -128,26 +157,71 @@ def _doc_tag_score(doc: dict, query_tags: list[str]) -> float:
     return score
 
 
-def _heuristic_rerank(docs: list[dict], query_tags: list[str], boost_weight: float = 0.15) -> list[dict]:
+def _doc_time_score(doc: dict, reference_date: datetime | None = None) -> float:
     """
-    Heuristic rerank dựa trên tag similarity.
+    Tính điểm ưu tiên theo độ mới của thời gian xuất bản (Recency Boost).
+    
+    Tỷ lệ điểm:
+    - Trong 24 giờ (<= 1 ngày): 1.0
+    - Trong 3 ngày (<= 3 ngày): 0.8
+    - Trong 7 ngày (<= 7 ngày): 0.6
+    - Trong 30 ngày (<= 30 ngày): 0.3
+    - Cũ hơn 30 ngày: 0.1
+    """
+    pub_str = doc.get("published_at", "")
+    if not pub_str:
+        return 0.0
 
-    Giữ nguyên thứ tự cross-encoder làm nền tảng,
-    tag score chỉ điều chỉnh nhẹ (boost_weight=0.15).
+    try:
+        dt_pub = datetime.strptime(str(pub_str)[:10], "%Y-%m-%d")
+        now = reference_date or datetime.now()
+        days_old = (now - dt_pub).days
+
+        if days_old <= 1:
+            return 1.0
+        elif days_old <= 3:
+            return 0.8
+        elif days_old <= 7:
+            return 0.6
+        elif days_old <= 30:
+            return 0.3
+        else:
+            return 0.1
+    except Exception:
+        return 0.0
+
+
+def _heuristic_rerank(
+    docs: list[dict],
+    query_tags: list[str],
+    tag_weight: float = 0.2,
+    time_weight: float = 0.25,
+    boost_weight: float | None = None,
+) -> list[dict]:
     """
-    if not query_tags or not docs:
+    Heuristic rerank kết hợp:
+    1. Cross-Encoder Rerank rank score (nền tảng)
+    2. Tag Overlap Score
+    3. Time Recency Score (ưu tiên tin tức mới đăng)
+    """
+    if not docs:
         return docs
 
+    if boost_weight is not None:
+        tag_weight = boost_weight
+
     n = len(docs)
-    rank_scores = [(n - i) / n for i in range(n)]
+    # Rank scores decay gently (1.0 down to 0.85) so time recency boost can promote recent news over older candidates
+    rank_scores = [1.0 - (0.15 * i / max(n - 1, 1)) for i in range(n)]
     tag_scores = [_doc_tag_score(doc, query_tags) for doc in docs]
+    time_scores = [_doc_time_score(doc) for doc in docs]
 
     max_tag = max(tag_scores) if any(s > 0 for s in tag_scores) else 1.0
     tag_scores_norm = [s / max_tag if max_tag > 0 else 0.0 for s in tag_scores]
 
     combined = [
-        (i, (1 - boost_weight) * rs + boost_weight * ts_norm)
-        for i, (rs, ts_norm) in enumerate(zip(rank_scores, tag_scores_norm))
+        (i, rs + (tag_weight * ts_norm) + (time_weight * tm))
+        for i, (rs, ts_norm, tm) in enumerate(zip(rank_scores, tag_scores_norm, time_scores))
     ]
     combined.sort(key=lambda x: x[1], reverse=True)
     reranked = [docs[i] for i, _ in combined]
@@ -156,8 +230,9 @@ def _heuristic_rerank(docs: list[dict], query_tags: list[str], boost_weight: flo
     new_order = [i for i, _ in combined]
     if original_order != new_order:
         logger.info(
-            f"[HeuristicRerank] Tag boost changed order: {original_order} → {new_order} "
-            f"(query_tags={query_tags}, tag_scores={[round(s, 2) for s in tag_scores]})"
+            f"[HeuristicRerank] Boost changed order: {original_order} → {new_order} "
+            f"(query_tags={query_tags}, tag_scores={[round(s, 2) for s in tag_scores]}, "
+            f"time_scores={[round(s, 2) for s in time_scores]})"
         )
     return reranked
 
@@ -165,20 +240,36 @@ def _heuristic_rerank(docs: list[dict], query_tags: list[str], boost_weight: flo
 async def ensure_payload_indexes() -> None:
     """
     Tạo payload index cho các field cần filter / range query trong Qdrant.
-    Hàm này idempotent: nếu index đã tồn tại thì Qdrant bỏ qua, không báo lỗi.
-
-    Các field cần index:
-    - published_at : float (Unix timestamp) — dùng cho Range filter
-    - site         : keyword              — dùng cho MatchValue filter
-    - tags         : keyword              — dùng cho MatchAny filter
+    Tự động khởi tạo Hybrid Collection (Dense + Sparse) nếu collection chưa tồn tại.
+    Hàm này idempotent: nếu index/collection đã tồn tại thì Qdrant bỏ qua, không báo lỗi.
     """
     if not qdrant_client:
         return
     collection = settings.qdrant_collection
+
+    # 1. Kiểm tra collection tồn tại, nếu chưa có thì tạo mới dạng Hybrid (Dense + Sparse)
+    try:
+        if not qdrant_client.collection_exists(collection_name=collection):
+            logger.info(f"[Qdrant] Collection '{collection}' does not exist. Creating Hybrid collection...")
+            qdrant_client.create_collection(
+                collection_name=collection,
+                vectors_config={
+                    "dense": VectorParams(size=384, distance=Distance.COSINE)
+                },
+                sparse_vectors_config={
+                    "sparse": SparseVectorParams()
+                }
+            )
+            logger.info(f"[Qdrant] Hybrid collection '{collection}' created successfully.")
+    except Exception as create_err:
+        logger.warning(f"[Qdrant] Failed to check/create collection '{collection}': {create_err}")
+
+    # 2. Đảm bảo các payload indexes (Bao gồm url_hash để phục vụ scroll filter)
     indexes = [
         ("published_at", PayloadSchemaType.KEYWORD),  # lưu dạng string 'YYYY-MM-DD'
         ("site",         PayloadSchemaType.KEYWORD),
         ("tags",         PayloadSchemaType.KEYWORD),
+        ("url_hash",     PayloadSchemaType.KEYWORD),  # Fix: Qdrant requiere index for url_hash filter
     ]
     for field_name, schema_type in indexes:
         try:
@@ -203,27 +294,33 @@ async def extract_structured_query(user_input: str, conversation_context: str = 
     Args:
         user_input:           Câu hỏi của người dùng.
         conversation_context: Tóm tắt ngắn về các chủ đề/bài báo đã retrieve trước đó.
-                              Dùng để LLM quyết định `needs_retrieval`.
+                              Dùng để LLM quyết định `needs_retrieval`, `exclude_sites`, `target_sites`.
 
     Returns:
-        dict với các trường: site, tags, date_from, date_to, semantic_query, needs_retrieval.
+        dict với các trường: site, target_sites, exclude_sites, tags, date_from, date_to, semantic_query, needs_retrieval.
     """
     today = datetime.now().strftime("%Y-%m-%d")
+    sources_summary = sources_registry.get_sources_prompt_summary()
 
-    # Phần hướng dẫn về needs_retrieval — chỉ thêm khi có context trước đó
+    # Phần hướng dẫn về needs_retrieval & source filtering — chỉ thêm khi có context trước đó
     context_hint = ""
     if conversation_context:
         context_hint = (
             f"\n\nNGỮ CẢNH HỘI THOẠI TRƯỚC ĐÓ:\n{conversation_context}\n\n"
-            "Dựa vào ngữ cảnh hội thoại trên, hãy xem xét:\n"
-            "- Nếu câu hỏi mới có thể trả lời hoàn toàn dựa trên các bài báo đã tìm kiếm trước đó "
-            "(ví dụ: câu hỏi làm rõ, tóm tắt thêm, giải thích, so sánh nội dung cũ), hãy đặt needs_retrieval = false.\n"
-            "- Nếu câu hỏi mới yêu cầu tìm kiếm chủ đề khác, bài báo mới, hoặc khoảng thời gian khác, hãy đặt needs_retrieval = true.\n"
-            "- Mặc định là true nếu không chắc chắn.\n\n"
+            "Dựa vào ngữ cảnh hội thoại trên, hãy phân tích kỹ nhu cầu tìm kiếm:\n"
+            "- Nếu câu hỏi là câu hỏi nối tiếp (follow-up) làm rõ, giải thích thêm, tóm tắt, so sánh hoặc hỏi chi tiết về nội dung ĐÃ CÓ trong các bài viết ở ngữ cảnh trước đó:\n"
+            "  + ĐẶT `needs_retrieval` = false (tuyệt đối không tìm kiếm lại dữ liệu mới từ DB).\n"
+            "- Nếu người dùng hỏi câu dạng 'Các nguồn khác thì sao?', 'Báo khác nói gì?', 'Còn các trang khác?':\n"
+            "  + ĐẶT `needs_retrieval` = true.\n"
+            "  + Liệt kê tên các trang web ĐÃ XUẤT HIỆN trong ngữ cảnh trước đó vào danh sách `exclude_sites` (ví dụ: ['cafef']).\n"
+            "  + Giữ nguyên `semantic_query` là chủ đề cốt lõi đang thảo luận ở các lượt trước.\n"
+            "- Nếu câu hỏi yêu cầu chủ đề mới, bài báo mới, hoặc khoảng thời gian khác:\n"
+            "  + ĐẶT `needs_retrieval` = true.\n\n"
         )
 
     system_prompt = (
-        f"Hôm nay là ngày {today}. "
+        f"Hôm nay là ngày {today}.\n"
+        f"{sources_summary}\n\n"
         "Bạn là chuyên gia phân tích truy vấn tìm kiếm ngữ nghĩa (semantic search). "
         "Nhiệm vụ: trích xuất thông tin từ câu hỏi và trả về JSON theo đúng cấu trúc bên dưới. "
         "KHÔNG thêm bất kỳ trường nào khác.\n\n"
@@ -231,37 +328,39 @@ async def extract_structured_query(user_input: str, conversation_context: str = 
         "QUY TẮC QUAN TRỌNG cho trường 'semantic_query':\n"
         "- Viết lại thành một MÔ TẢ NỘI DUNG súc tích, KHÔNG phải câu hỏi hay yêu cầu.\n"
         "- TUYỆT ĐỐI KHÔNG dùng các từ nhiễu: 'tin tức', 'tin mới', 'thông tin', 'cho tôi biết', "
-        "'có gì', 'như thế nào', 'tình hình', 'cập nhật', 'mới nhất', 'hỏi về', 'cho tôi xem'.\n"
+        "'có gì', 'như thế nào', 'tình hình', 'cập nhật', 'mới nhất', 'hỏi về', 'cho tôi xem', 'các nguồn khác', 'báo khác'.\n"
         "- Tập trung vào CHỦ THỂ và SỰ KIỆN cốt lõi — những từ xuất hiện trong nội dung bài báo.\n"
         "- Không bao gồm thông tin về website hay khoảng thời gian.\n\n"
 
         "VÍ DỤ (few-shot):\n"
         "  Input:  'Tin tức giá vàng 2 ngày nay'\n"
-        "  Output semantic_query: 'giá vàng biến động'\n\n"
-        "  Input:  'Cho tôi biết tin tức về thị trường chứng khoán hôm nay'\n"
-        "  Output semantic_query: 'thị trường chứng khoán'\n\n"
-        "  Input:  'Có tin gì về Bitcoin không?'\n"
-        "  Output semantic_query: 'Bitcoin tiền mã hóa'\n\n"
-        "  Input:  'Tình hình kinh tế Việt Nam tháng này'\n"
-        "  Output semantic_query: 'kinh tế Việt Nam'\n\n"
-        "  Input:  'Giá xăng dầu tuần này như thế nào'\n"
-        "  Output semantic_query: 'giá xăng dầu'\n\n"
-        "  Input:  'Tin mới nhất về chiến tranh Ukraine'\n"
-        "  Output semantic_query: 'xung đột Nga Ukraine'\n\n"
+        "  Output: {\"semantic_query\": \"giá vàng biến động\", \"needs_retrieval\": true}\n\n"
+
+        "  Input:  'Có tin gì về Bitcoin trên Saigon Times không?'\n"
+        "  Output: {\"semantic_query\": \"Bitcoin tiền mã hóa\", \"target_sites\": [\"thesaigontimes\"], \"needs_retrieval\": true}\n\n"
+
+        "  Input:  'Tóm tắt thêm thông tin này cho tôi' (Đã có bài viết ở ngữ cảnh trước)\n"
+        "  Output: {\"semantic_query\": \"tóm tắt thông tin\", \"needs_retrieval\": false}\n\n"
+
+        "  Input:  'Các nguồn khác nói gì về vấn đề này?' (Ngữ cảnh cũ đã dùng cafef)\n"
+        "  Output: {\"semantic_query\": \"<chủ đề cũ>\", \"exclude_sites\": [\"cafef\"], \"needs_retrieval\": true}\n\n"
 
         + context_hint
         + "CẤU TRÚC JSON:\n"
         "{\n"
-        "  \"site\": \"tên trang web nếu người dùng có nhắc đến (ví dụ: cafef, vnexpress, dantri), "
-        "để trống nếu không đề cập\",\n"
+        "  \"site\": \"tên 1 trang web nếu người dùng chỉ định duy nhất (ví dụ: cafef, thesaigontimes, vneconomy), để trống nếu không\",\n"
+        "  \"target_sites\": [\"danh sách mã trang web muốn tìm cụ thể (như 'cafef', 'thesaigontimes', 'vneconomy')\"],\n"
+        "  \"exclude_sites\": [\"danh sách mã trang web CẦN LOẠI TRỪ khi hỏi 'các nguồn khác' (ví dụ: ['cafef'])\"],\n"
         "  \"tags\": [\"tối đa 3 chủ đề, tiếng Việt CÓ DẤU (ví dụ: 'kinh tế', 'tài chính')\"],\n"
         "  \"date_from\": \"YYYY-MM-DD nếu người dùng đề cập khoảng thời gian, để trống nếu không\",\n"
         "  \"date_to\": \"YYYY-MM-DD ngày kết thúc, thường là hôm nay nếu có date_from, để trống nếu không\",\n"
         "  \"semantic_query\": \"mô tả nội dung cốt lõi theo quy tắc trên\",\n"
-        "  \"needs_retrieval\": true\n"
+        "  \"needs_retrieval\": false\n"
         "}\n"
-        "Lưu ý: needs_retrieval mặc định là true nếu không có ngữ cảnh trước đó. "
-        "Chỉ đặt false khi câu hỏi rõ ràng có thể trả lời từ ngữ cảnh đã có."
+        "QUY TẮC QUAN TRỌNG cho 'needs_retrieval':\n"
+        "- Giá trị PHẢI là boolean JSON thuần túy: true hoặc false (KHÔNG bọc trong dấu ngoặc kép, KHÔNG dùng chữ khác).\n"
+        "- Đặt FALSE khi: câu hỏi nối tiếp/follow-up có thể trả lời hoàn toàn từ nội dung bài báo đã có trong ngữ cảnh trước đó.\n"
+        "- Đặt TRUE khi: câu hỏi cần tìm kiếm bài báo mới, chủ đề mới, nguồn mới, hoặc khoảng thời gian khác."
     )
 
     try:
@@ -283,7 +382,11 @@ async def extract_structured_query(user_input: str, conversation_context: str = 
                     if raw.startswith("json"):
                         raw = raw[4:]
                 data = json.loads(raw.strip())
-                logger.info(f"Extracted structured query (Gemini): {data}")
+                logger.info(
+                    f"\n================ [STRUCTURED QUERY EXTRACTED (Gemini)] ================\n"
+                    f"{json.dumps(data, ensure_ascii=False, indent=2)}\n"
+                    f"========================================================================="
+                )
                 return data
             except Exception as gemini_err:
                 err_str = str(gemini_err)
@@ -305,7 +408,11 @@ async def extract_structured_query(user_input: str, conversation_context: str = 
             json_format=True
         )
         data = json.loads(raw)
-        logger.info(f"Extracted structured query (Ollama): {data}")
+        logger.info(
+            f"\n================ [STRUCTURED QUERY EXTRACTED (Ollama)] ================\n"
+            f"{json.dumps(data, ensure_ascii=False, indent=2)}\n"
+            f"========================================================================="
+        )
         return data
     except Exception as e:
         logger.error(f"Error extracting structured query: {e}")
@@ -322,53 +429,30 @@ async def search_articles(
     """
     Generate an embedding for the structured query and search Qdrant for relevant articles with filters.
     Optionally applies Cross-Encoder reranking to improve result quality.
-
-    Logic có cache:
-    - LLM phân tích câu hỏi và quyết định needs_retrieval dựa trên conversation_context.
-    - Nếu needs_retrieval=False và đã có cached_articles → trả về cache ngay, skip Qdrant.
-    - Nếu needs_retrieval=True → thực hiện truy vấn Qdrant như bình thường.
-
-    Args:
-        query:                Câu hỏi của người dùng.
-        limit:                Số bài báo tối đa trả về.
-        rerank:               Có dùng Cross-Encoder reranking không.
-        cached_articles:      Danh sách bài báo đã retrieve từ câu hỏi trước (có thể None).
-        conversation_context: Tóm tắt ngắn chủ đề/bài báo trước, dùng để LLM quyết định needs_retrieval.
-
-    Returns:
-        tuple(list[dict], bool): (danh sách bài báo, True nếu retrieve mới / False nếu dùng cache).
-
-    Filter strategy:
-    - must:   site (nếu người dùng chỉ định), date_from/date_to (nếu có)
-    - should: tags (boost điểm nếu match, không bắt buộc)
-
-    Reranking strategy:
-    - Retrieve `retrieval_limit` candidates (3× of final limit) from Qdrant
-    - Rerank with a CPU Cross-Encoder model in a background thread
-    - Return top `limit` results
     """
-    if not embedder or not qdrant_client:
-        logger.warning("Embedder or Qdrant client not initialized, skipping RAG search.")
-        return [], False
-
     try:
         # 1. Extract structured query via LLM
-        #    Truyền conversation_context để LLM xác định needs_retrieval
         structured_data = await extract_structured_query(
             query, conversation_context=conversation_context
         )
         semantic_query = structured_data.get("semantic_query") or query
         site = structured_data.get("site", "").strip()
+        target_sites = structured_data.get("target_sites", [])
+        exclude_sites = structured_data.get("exclude_sites", [])
         tags = structured_data.get("tags", [])
         date_from = structured_data.get("date_from", "").strip()
         date_to = structured_data.get("date_to", "").strip()
-        # needs_retrieval: True = cần query DB, False = dùng cache
-        needs_retrieval: bool = bool(structured_data.get("needs_retrieval", True))
+        
+        # Xử lý an toàn boolean / string cho needs_retrieval
+        raw_needs_retrieval = structured_data.get("needs_retrieval", True)
+        if isinstance(raw_needs_retrieval, str):
+            needs_retrieval = raw_needs_retrieval.lower().strip() not in ("false", "0", "no")
+        else:
+            needs_retrieval = bool(raw_needs_retrieval)
 
         logger.info(
-            f"Structured Query Data: {structured_data} | "
-            f"needs_retrieval={needs_retrieval} | "
-            f"has_cache={bool(cached_articles)}"
+            f"[RAG SEARCH] Query: '{query}' | semantic_query: '{semantic_query}' | "
+            f"needs_retrieval={needs_retrieval} | has_cache={bool(cached_articles)}"
         )
 
         # 2. Nếu LLM xác định không cần retrieve mới và đã có cache → dùng cache
@@ -379,27 +463,37 @@ async def search_articles(
             )
             return cached_articles, False
 
-        # 3. Build Qdrant Filter
+        if not embedder or not qdrant_client:
+            logger.warning("Embedder or Qdrant client not initialized, skipping RAG search.")
+            return [], False
+
+        # 3. Build Qdrant Filter (must, should, must_not)
         must_conditions = []
         should_conditions = []
+        must_not_conditions = []
 
-        # --- must: site filter (chỉ khi người dùng chỉ định rõ) ---
-        if site:
-            normalized_site = site.lower().strip()
-            if "saigon" in normalized_site or "times" in normalized_site:
-                normalized_site = "thesaigontimes"
-            elif "cafef" in normalized_site:
-                normalized_site = "cafef"
-            elif "vneconomy" in normalized_site or "vnecon" in normalized_site:
-                normalized_site = "vneconomy"
-                
-            must_conditions.append(
-                FieldCondition(key="site", match=MatchValue(value=normalized_site))
-            )
+        # --- must: target_sites / site filter ---
+        if target_sites and isinstance(target_sites, list) and len(target_sites) > 0:
+            norm_targets = [sources_registry.normalize_site(s) for s in target_sites if s]
+            norm_targets = [s for s in norm_targets if s]
+            if len(norm_targets) == 1:
+                must_conditions.append(FieldCondition(key="site", match=MatchValue(value=norm_targets[0])))
+            elif len(norm_targets) > 1:
+                must_conditions.append(FieldCondition(key="site", match=MatchAny(any=norm_targets)))
+        elif site:
+            norm_site = sources_registry.normalize_site(site)
+            if norm_site:
+                must_conditions.append(FieldCondition(key="site", match=MatchValue(value=norm_site)))
+
+        # --- must_not: exclude_sites filter (dùng cho 'các nguồn khác') ---
+        if exclude_sites and isinstance(exclude_sites, list) and len(exclude_sites) > 0:
+            norm_excludes = [sources_registry.normalize_site(s) for s in exclude_sites if s]
+            norm_excludes = [s for s in norm_excludes if s]
+            for ex_site in norm_excludes:
+                must_not_conditions.append(FieldCondition(key="site", match=MatchValue(value=ex_site)))
+            logger.info(f"Excluding sites filter: {norm_excludes}")
 
         # --- must: date range filter ---
-        # published_at lưu dạng string 'YYYY-MM-DD'.
-        # Qdrant Range chỉ hỗ trợ số → dùng MatchAny với danh sách ngày trong range.
         if date_from and date_to:
             try:
                 dt_from = datetime.strptime(date_from, "%Y-%m-%d")
@@ -424,9 +518,7 @@ async def search_articles(
             except ValueError:
                 logger.warning(f"Invalid date_from: {date_from}, skipping.")
 
-
-        # --- should: tags filter với nhiều biến thể chuẩn hoá ---
-        # Sinh đủ biến thể (có dấu, không dấu, slug...) để match bất kể site lưu dạng nào.
+        # --- should: tags filter ---
         if tags and isinstance(tags, list) and len(tags) > 0:
             all_variants: list[str] = []
             for t in tags:
@@ -437,33 +529,60 @@ async def search_articles(
             )
             logger.info(f"Tag filter variants (first 10): {unique_variants[:10]} ...")
 
-        # Chỉ tạo filter nếu có ít nhất 1 điều kiện
+        # Tạo filter tổng hợp
         qdrant_filter = None
-        if must_conditions or should_conditions:
+        if must_conditions or should_conditions or must_not_conditions:
             qdrant_filter = Filter(
                 must=must_conditions if must_conditions else None,
                 should=should_conditions if should_conditions else None,
+                must_not=must_not_conditions if must_not_conditions else None,
             )
 
-        # 4. Create embedding (E5 models require 'query: ' prefix)
+        # 4. Create embeddings (Dense E5 + FastEmbed BM25 Sparse)
         query_text = f"query: {semantic_query}"
         query_vector = embedder.encode(query_text).tolist()
+        sparse_vector = get_sparse_vector(semantic_query)
 
         # 5. Retrieve more candidates when reranking is enabled (3× the final limit)
-        #    so the Cross-Encoder has a larger pool to select from.
         retrieval_limit = (limit * 3) if rerank else limit
 
-        # 6. Search in Qdrant với API mới query_points() (search() đã bị remove)
-        response = qdrant_client.query_points(
-            collection_name=settings.qdrant_collection,
-            query=query_vector,
-            query_filter=qdrant_filter,
-            limit=retrieval_limit,
-            with_payload=True,
-            score_threshold=0.5,  # chỉ giữ candidates có embedding similarity ≥ 0.5
-        )
+        # 6. Execute Hybrid Search (Dense + Sparse with RRF Fusion) or fallback to Dense Search
+        candidates = []
+        if sparse_vector:
+            try:
+                logger.info(f"Executing Hybrid Search (Dense E5 + Sparse BM25 RRF Fusion) for: '{semantic_query}'")
+                response = qdrant_client.query_points(
+                    collection_name=settings.qdrant_collection,
+                    prefetch=[
+                        Prefetch(query=query_vector, using="dense", limit=retrieval_limit, filter=qdrant_filter),
+                        Prefetch(query=sparse_vector, using="sparse", limit=retrieval_limit, filter=qdrant_filter),
+                    ],
+                    query=FusionQuery(fusion=Fusion.RRF),
+                    limit=retrieval_limit,
+                    with_payload=True,
+                )
+                candidates = [pt.payload for pt in response.points if pt.payload]
+                logger.info(f"Hybrid Search returned {len(candidates)} candidates.")
+            except Exception as hybrid_err:
+                logger.warning(
+                    f"Hybrid search prefetch failed (collection might be using single-vector format), "
+                    f"falling back to Dense Search: {hybrid_err}"
+                )
+                candidates = []
 
-        candidates = [pt.payload for pt in response.points if pt.payload]
+        if not candidates:
+            # Dense Vector Search fallback
+            response = qdrant_client.query_points(
+                collection_name=settings.qdrant_collection,
+                query=query_vector,
+                using="dense",
+                query_filter=qdrant_filter,
+                limit=retrieval_limit,
+                with_payload=True,
+                score_threshold=0.5,
+            )
+            candidates = [pt.payload for pt in response.points if pt.payload]
+
         logger.info(
             f"Qdrant search returned {len(candidates)} candidates "
             f"(filter: site='{site}', date={date_from}~{date_to}, tags={tags})"
@@ -699,6 +818,7 @@ async def _relaxed_fallback_search(
             response = qdrant_client.query_points(
                 collection_name=collection,
                 query=query_vector,
+                using="dense",
                 query_filter=relaxed_filter,
                 limit=retrieval_limit,
                 with_payload=True,

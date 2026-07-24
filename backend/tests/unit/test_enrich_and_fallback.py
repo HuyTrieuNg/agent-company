@@ -397,6 +397,7 @@ class TestRelaxedFallbackSearch:
 
         call_kwargs = mock_qdrant.query_points.call_args.kwargs
         assert call_kwargs.get("score_threshold") == 0.4
+        assert call_kwargs.get("using") == "dense"
 
 
 # ===========================================================================
@@ -573,6 +574,8 @@ class TestChatEndpointFallbackHandling:
     def setup_method(self):
         from fastapi.testclient import TestClient
         from backend.main import app
+        from backend.config import settings
+        settings.gemini_api_key = "fake_key"
         self.client = TestClient(app)
 
     @patch("backend.routers.chat.search_articles", new_callable=AsyncMock)

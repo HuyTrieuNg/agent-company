@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 # Dedicated thread pool for CPU-bound reranking inference
 _RERANK_EXECUTOR = ThreadPoolExecutor(max_workers=2, thread_name_prefix="reranker")
 
-RERANKER_MODEL_NAME = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+RERANKER_MODEL_NAME = "BAAI/bge-reranker-v2-m3"
 
 
 @lru_cache(maxsize=1)
@@ -28,6 +28,7 @@ def _get_cross_encoder():
     """
     Lazy-load the CrossEncoder model (cached as a singleton).
     Uses lru_cache so the model is loaded only once on first call.
+    Configured for CPU execution with BAAI/bge-reranker-v2-m3.
     """
     from sentence_transformers import CrossEncoder  # noqa: PLC0415
     logger.info(f"Loading Cross-Encoder model '{RERANKER_MODEL_NAME}' on CPU...")
