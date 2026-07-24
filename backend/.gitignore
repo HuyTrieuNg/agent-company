@@ -9,3 +9,8 @@ wheels/
 # Virtual environments
 .venv
 .env
+
+/context/*
+!/context/.gitkeep
+
+/debug_files
