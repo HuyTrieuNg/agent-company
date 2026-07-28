@@ -5,6 +5,7 @@ import {
   useState,
   useEffect,
   KeyboardEvent,
+  memo,
 } from "react";
 import { sendMessage, ChatMessage } from "@/lib/api";
 import Markdown from "@/components/Markdown";
@@ -31,6 +32,80 @@ function ResetIcon() {
     </svg>
   );
 }
+
+const MessageList = memo(function MessageList({
+  history,
+  loading,
+  onSuggestionClick,
+}: {
+  history: ChatMessage[];
+  loading: boolean;
+  onSuggestionClick: (s: string) => void;
+}) {
+  return (
+    <>
+      {history.length === 0 && !loading ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-3.5 px-6 py-16 text-center">
+          <div className="text-[44px] leading-none filter drop-shadow-[0_0_20px_rgba(139,92,246,0.5)]">✦</div>
+          <h1 className="m-0 text-[22px] font-bold tracking-[-0.5px] text-slate-50">
+            Xin chào! Tôi có thể giúp gì?
+          </h1>
+          <p className="m-0 max-w-xs text-sm leading-[1.65] text-slate-500">
+            Tôi là trợ lý AI thông minh được vận hành bởi Google Gemini.
+            Hãy hỏi tôi bất kỳ điều gì hoặc yêu cầu tìm kiếm tin tức trên hệ thống.
+          </p>
+          <div className="mt-2 flex flex-wrap justify-center gap-2">
+            {SUGGESTIONS.map((s) => (
+              <button
+                key={s}
+                className="cursor-pointer rounded-full border border-white/8 bg-white/4 px-4 py-2 text-[13px] text-slate-400 transition-all duration-200 ease-in-out hover:-translate-y-px hover:border-[#8b5cf6]/60 hover:bg-[#8b5cf6]/10 hover:text-slate-50"
+                id={`chip-${s.slice(0, 15).replace(/\s+/g, "-")}`}
+                onClick={() => onSuggestionClick(s)}
+              >
+                {s}
+              </button>
+            ))}
+          </div>
+        </div>
+      ) : (
+        <>
+          {history.map((msg, i) => (
+            <div
+              key={i}
+              id={`msg-${i}`}
+              className={`flex gap-3 animate-fade-up ${msg.role === "user" ? "flex-row-reverse" : ""}`}
+            >
+              <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm ${msg.role === "model" ? "bg-linear-to-br from-[#8b5cf6] to-[#06b6d4] shadow-[0_2px_12px_rgba(139,92,246,0.35)]" : "border border-white/8 bg-white/7"}`}>
+                {msg.role === "model" ? "✦" : "👤"}
+              </div>
+
+              <div className={`max-w-[74%] rounded-2xl px-4 py-3 text-sm leading-[1.7] wrap-break-word ${msg.role === "user" ? "rounded-br-sm bg-linear-to-br from-[#8b5cf6] to-[#6d28d9] text-white" : "rounded-bl-sm border border-white/8 bg-white/5 text-slate-100 backdrop-blur-md"}`}>
+                {msg.role === "model" ? (
+                  <Markdown content={msg.content} />
+                ) : (
+                  <span style={{ whiteSpace: "pre-wrap" }}>{msg.content}</span>
+                )}
+              </div>
+            </div>
+          ))}
+
+          {loading && (
+            <div className="flex gap-3 animate-fade-up" id="typing-indicator">
+              <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-linear-to-br from-[#8b5cf6] to-[#06b6d4] text-sm shadow-[0_2px_12px_rgba(139,92,246,0.35)]">✦</div>
+              <div className="max-w-[74%] rounded-2xl rounded-bl-sm border border-white/8 bg-white/5 px-4 py-3 text-sm leading-[1.7] backdrop-blur-md">
+                <div className="flex items-center gap-1.25 py-0.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#8b5cf6] animate-blink" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#8b5cf6] animate-blink [animation-delay:0.18s]" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-[#8b5cf6] animate-blink [animation-delay:0.36s]" />
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </>
+  );
+});
 
 export default function ChatPage() {
   const [history, setHistory] = useState<ChatMessage[]>([]);
@@ -119,68 +194,14 @@ export default function ChatPage() {
 
       {/* ── Messages ── */}
       <main className="flex flex-1 flex-col gap-5 overflow-y-auto px-5 py-7" id="messages-area">
-        {history.length === 0 && !loading ? (
-          <div className="flex flex-1 flex-col items-center justify-center gap-3.5 px-6 py-16 text-center">
-            <div className="text-[44px] leading-none filter drop-shadow-[0_0_20px_rgba(139,92,246,0.5)]">✦</div>
-            <h1 className="m-0 text-[22px] font-bold tracking-[-0.5px] text-slate-50">
-              Xin chào! Tôi có thể giúp gì?
-            </h1>
-            <p className="m-0 max-w-xs text-sm leading-[1.65] text-slate-500">
-              Tôi là trợ lý AI thông minh được vận hành bởi Google Gemini.
-              Hãy hỏi tôi bất kỳ điều gì hoặc yêu cầu tìm kiếm tin tức trên hệ thống.
-            </p>
-            <div className="mt-2 flex flex-wrap justify-center gap-2">
-              {SUGGESTIONS.map((s) => (
-                <button
-                  key={s}
-                  className="cursor-pointer rounded-full border border-white/8 bg-white/4 px-4 py-2 text-[13px] text-slate-400 transition-all duration-200 ease-in-out hover:-translate-y-px hover:border-[#8b5cf6]/60 hover:bg-[#8b5cf6]/10 hover:text-slate-50"
-                  id={`chip-${s.slice(0, 15).replace(/\s+/g, "-")}`}
-                  onClick={() => {
-                    setInput(s);
-                    textareaRef.current?.focus();
-                  }}
-                >
-                  {s}
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : (
-          <>
-            {history.map((msg, i) => (
-              <div
-                key={i}
-                id={`msg-${i}`}
-                className={`flex gap-3 animate-fade-up ${msg.role === "user" ? "flex-row-reverse" : ""}`}
-              >
-                <div className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-sm ${msg.role === "model" ? "bg-linear-to-br from-[#8b5cf6] to-[#06b6d4] shadow-[0_2px_12px_rgba(139,92,246,0.35)]" : "border border-white/8 bg-white/7"}`}>
-                  {msg.role === "model" ? "✦" : "👤"}
-                </div>
-
-                <div className={`max-w-[74%] rounded-2xl px-4 py-3 text-sm leading-[1.7] wrap-break-word ${msg.role === "user" ? "rounded-br-sm bg-linear-to-br from-[#8b5cf6] to-[#6d28d9] text-white" : "rounded-bl-sm border border-white/8 bg-white/5 text-slate-100 backdrop-blur-md"}`}>
-                  {msg.role === "model" ? (
-                    <Markdown content={msg.content} />
-                  ) : (
-                    <span style={{ whiteSpace: "pre-wrap" }}>{msg.content}</span>
-                  )}
-                </div>
-              </div>
-            ))}
-
-            {loading && (
-              <div className="flex gap-3 animate-fade-up" id="typing-indicator">
-                <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-linear-to-br from-[#8b5cf6] to-[#06b6d4] text-sm shadow-[0_2px_12px_rgba(139,92,246,0.35)]">✦</div>
-                <div className="max-w-[74%] rounded-2xl rounded-bl-sm border border-white/8 bg-white/5 px-4 py-3 text-sm leading-[1.7] backdrop-blur-md">
-                  <div className="flex items-center gap-1.25 py-0.5">
-                    <span className="h-1.5 w-1.5 rounded-full bg-[#8b5cf6] animate-blink" />
-                    <span className="h-1.5 w-1.5 rounded-full bg-[#8b5cf6] animate-blink [animation-delay:0.18s]" />
-                    <span className="h-1.5 w-1.5 rounded-full bg-[#8b5cf6] animate-blink [animation-delay:0.36s]" />
-                  </div>
-                </div>
-              </div>
-            )}
-          </>
-        )}
+        <MessageList 
+          history={history} 
+          loading={loading} 
+          onSuggestionClick={(s) => {
+            setInput(s);
+            textareaRef.current?.focus();
+          }}
+        />
         <div ref={messagesEndRef} />
       </main>
 

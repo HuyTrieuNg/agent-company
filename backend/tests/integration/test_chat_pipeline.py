@@ -8,7 +8,7 @@ client = TestClient(app)
 
 @pytest.mark.asyncio
 @patch("backend.routers.chat.search_articles", new_callable=AsyncMock)
-@patch("backend.routers.chat.generate_gemini_content", new_callable=AsyncMock)
+@patch("backend.routers.chat.generate_gemini_content_with_tools", new_callable=AsyncMock)
 async def test_chat_pipeline_new_query(mock_gemini, mock_search):
     # Mock search_articles return: a list of new articles, did_retrieve=True
     mock_search.return_value = (
@@ -49,7 +49,7 @@ async def test_chat_pipeline_new_query(mock_gemini, mock_search):
 
 @pytest.mark.asyncio
 @patch("backend.routers.chat.search_articles", new_callable=AsyncMock)
-@patch("backend.routers.chat.generate_gemini_content", new_callable=AsyncMock)
+@patch("backend.routers.chat.generate_gemini_content_with_tools", new_callable=AsyncMock)
 async def test_chat_pipeline_followup_uses_cache(mock_gemini, mock_search):
     # Mock search_articles return: returns same cached articles, did_retrieve=False
     cached = [{"article_title": "Tựa đề 1", "site": "CafeF", "text": "Chi tiết 1", "article_url": "url1"}]
@@ -110,7 +110,7 @@ def test_chat_validation_invalid_history_role():
     (not 422), because Pydantic only validates type, not enum value for str."""
     # ChatMessage.role is plain str — Pydantic will accept any string
     with patch("backend.routers.chat.search_articles", new_callable=AsyncMock) as mock_search, \
-         patch("backend.routers.chat.generate_gemini_content", new_callable=AsyncMock) as mock_gemini:
+         patch("backend.routers.chat.generate_gemini_content_with_tools", new_callable=AsyncMock) as mock_gemini:
         mock_search.return_value = ([], True)
         mock_gemini.return_value = "OK"
         payload = {
@@ -125,7 +125,7 @@ def test_chat_validation_invalid_history_role():
 
 @pytest.mark.asyncio
 @patch("backend.routers.chat.search_articles", new_callable=AsyncMock)
-@patch("backend.routers.chat.generate_gemini_content", new_callable=AsyncMock)
+@patch("backend.routers.chat.generate_gemini_content_with_tools", new_callable=AsyncMock)
 async def test_chat_pipeline_gemini_error_returns_500(mock_gemini, mock_search):
     """If Gemini raises an exception, the endpoint should return 500 with 'detail'."""
     mock_search.return_value = ([], True)
@@ -146,7 +146,7 @@ async def test_chat_pipeline_gemini_error_returns_500(mock_gemini, mock_search):
 
 @pytest.mark.asyncio
 @patch("backend.routers.chat.search_articles", new_callable=AsyncMock)
-@patch("backend.routers.chat.generate_gemini_content", new_callable=AsyncMock)
+@patch("backend.routers.chat.generate_gemini_content_with_tools", new_callable=AsyncMock)
 async def test_chat_response_schema_compatibility(mock_gemini, mock_search):
     """
     Verify the exact response schema that the frontend expects:
@@ -195,7 +195,7 @@ async def test_chat_response_schema_compatibility(mock_gemini, mock_search):
 
 @pytest.mark.asyncio
 @patch("backend.routers.chat.search_articles", new_callable=AsyncMock)
-@patch("backend.routers.chat.generate_gemini_content", new_callable=AsyncMock)
+@patch("backend.routers.chat.generate_gemini_content_with_tools", new_callable=AsyncMock)
 async def test_chat_pipeline_empty_cache_not_persisted_on_no_retrieve(mock_gemini, mock_search):
     """
     When search returns did_retrieve=True but empty results and there were no prior
@@ -220,7 +220,7 @@ async def test_chat_pipeline_empty_cache_not_persisted_on_no_retrieve(mock_gemin
 
 @pytest.mark.asyncio
 @patch("backend.routers.chat.search_articles", new_callable=AsyncMock)
-@patch("backend.routers.chat.generate_gemini_content", new_callable=AsyncMock)
+@patch("backend.routers.chat.generate_gemini_content_with_tools", new_callable=AsyncMock)
 async def test_chat_history_accumulates_correctly(mock_gemini, mock_search):
     """
     Send two sequential requests simulating a conversation.

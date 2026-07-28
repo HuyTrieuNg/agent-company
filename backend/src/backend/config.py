@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     qdrant_url: str = ""
     qdrant_api_key: str = ""
     qdrant_collection: str = "articles"
+    
+    # Vnstock API Key
+    vnstock_api_key: str = ""
 
     cache_ttl_hours: int = 6
     max_sources_per_query: int = 2

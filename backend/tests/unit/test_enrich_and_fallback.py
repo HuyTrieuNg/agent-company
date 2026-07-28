@@ -579,7 +579,7 @@ class TestChatEndpointFallbackHandling:
         self.client = TestClient(app)
 
     @patch("backend.routers.chat.search_articles", new_callable=AsyncMock)
-    @patch("backend.routers.chat.generate_gemini_content", new_callable=AsyncMock)
+    @patch("backend.routers.chat.generate_gemini_content_with_tools", new_callable=AsyncMock)
     def test_fallback_results_produce_suggestion_reply(self, mock_gemini, mock_search):
         """
         Khi search_articles trả về chunks có _is_fallback=True,
@@ -614,7 +614,7 @@ class TestChatEndpointFallbackHandling:
         assert "TUYỆT ĐỐI KHÔNG tự suy diễn" in system_instr
 
     @patch("backend.routers.chat.search_articles", new_callable=AsyncMock)
-    @patch("backend.routers.chat.generate_gemini_content", new_callable=AsyncMock)
+    @patch("backend.routers.chat.generate_gemini_content_with_tools", new_callable=AsyncMock)
     def test_normal_results_produce_standard_context_prompt(self, mock_gemini, mock_search):
         """
         Khi chunks không có _is_fallback, system_instruction là chế độ RAG bình thường.
@@ -627,7 +627,7 @@ class TestChatEndpointFallbackHandling:
                 "article_url": "https://cafef.vn/tin-vang",
             }
         ]
-        mock_search.return_value = (normal_chunks, True)
+        mock_search.return_value = (normal_chunks, False)
         mock_gemini.return_value = "Giá vàng hôm nay tăng 5%."
 
         response = self.client.post("/api/chat", json={
@@ -645,7 +645,7 @@ class TestChatEndpointFallbackHandling:
         assert "KHÔNG tìm được kết quả chính xác" not in system_instr
 
     @patch("backend.routers.chat.search_articles", new_callable=AsyncMock)
-    @patch("backend.routers.chat.generate_gemini_content", new_callable=AsyncMock)
+    @patch("backend.routers.chat.generate_gemini_content_with_tools", new_callable=AsyncMock)
     def test_fallback_articles_are_cached_for_next_turn(self, mock_gemini, mock_search):
         """
         Chunks fallback phải được trả về trong cached_articles để lượt sau
