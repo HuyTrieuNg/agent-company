@@ -25,7 +25,14 @@ class Base(DeclarativeBase):
 
 async def init_db() -> None:
     """Create all tables if they don't exist."""
-    from .models import ArticleCache, SourceProfile, ResearchSession  # noqa: F401
+    from .models import (
+        ArticleCache,
+        SourceProfile,
+        ResearchSession,
+        ChatHistorySession,
+        ChatHistoryMessage,
+        UserPreferenceModel,
+    )  # noqa: F401
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 

@@ -1,15 +1,35 @@
 """Chat API router with Gemini Function Calling support."""
+
 import json
 import logging
+import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import select, delete
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import settings
+from ..db.database import get_session
+from ..db.models import ChatHistorySession, ChatHistoryMessage, UserPreferenceModel
 from ..gemini_service import generate_gemini_content_with_tools
-from ..models import ChatMessage, ChatRequest, ChatResponse
+from ..models import (
+    ChatMessage,
+    ChatRequest,
+    ChatResponse,
+    ChatSessionSummary,
+    ChatSessionDetail,
+)
 from ..ollama_service import generate_ollama_content
 from ..qdrant_service import search_articles
+from ..services.forex_service import (
+    get_forex_history,
+    get_forex_overview,
+)
+from ..services.gold_service import (
+    get_gold_history,
+    get_gold_overview,
+)
 from ..services.stock_service import (
     get_financial_report,
     get_stock_news,
@@ -26,17 +46,19 @@ router = APIRouter(prefix="/api/chat", tags=["chat"])
 def _build_conversation_context(
     history: list[ChatMessage],
     cached_articles: list[dict] | None = None,
-    max_turns: int = 3
+    max_turns: int = 3,
 ) -> str:
     """Tạo tóm tắt ngắn về các chủ đề và nguồn trang web đã được trích dẫn trong các lượt trước."""
     lines = []
     if cached_articles:
         cited_sites = set(art.get("site") for art in cached_articles if art.get("site"))
         if cited_sites:
-            lines.append(f"Các nguồn trang web đã trích dẫn ở lượt trước: {', '.join(cited_sites)}")
+            lines.append(
+                f"Các nguồn trang web đã trích dẫn ở lượt trước: {', '.join(cited_sites)}"
+            )
 
     if history:
-        recent = history[-(max_turns * 2):]
+        recent = history[-(max_turns * 2) :]
         user_messages = [msg.content for msg in recent if msg.role == "user"]
         if user_messages:
             lines.append("Các câu hỏi trước của người dùng:")
@@ -74,7 +96,10 @@ TOOL_DECLARATIONS = [
         "parameters": {
             "type": "object",
             "properties": {
-                "symbol": {"type": "string", "description": "Mã chứng khoán, ví dụ: VNM, VIC, HPG"},
+                "symbol": {
+                    "type": "string",
+                    "description": "Mã chứng khoán, ví dụ: VNM, VIC, HPG",
+                },
             },
             "required": ["symbol"],
         },
@@ -86,8 +111,14 @@ TOOL_DECLARATIONS = [
             "type": "object",
             "properties": {
                 "symbol": {"type": "string", "description": "Mã chứng khoán"},
-                "start_date": {"type": "string", "description": "Ngày bắt đầu YYYY-MM-DD, mặc định 2024-01-01"},
-                "end_date": {"type": "string", "description": "Ngày kết thúc YYYY-MM-DD, mặc định hôm nay"},
+                "start_date": {
+                    "type": "string",
+                    "description": "Ngày bắt đầu YYYY-MM-DD, mặc định 2024-01-01",
+                },
+                "end_date": {
+                    "type": "string",
+                    "description": "Ngày kết thúc YYYY-MM-DD, mặc định hôm nay",
+                },
             },
             "required": ["symbol"],
         },
@@ -101,7 +132,12 @@ TOOL_DECLARATIONS = [
                 "symbol": {"type": "string", "description": "Mã chứng khoán"},
                 "report_type": {
                     "type": "string",
-                    "enum": ["income_statement", "balance_sheet", "cash_flow", "ratios"],
+                    "enum": [
+                        "income_statement",
+                        "balance_sheet",
+                        "cash_flow",
+                        "ratios",
+                    ],
                     "description": "Loại báo cáo: income_statement (KQKD), balance_sheet (CĐKT), cash_flow (LCTT), ratios (chỉ số)",
                 },
                 "period": {
@@ -120,7 +156,11 @@ TOOL_DECLARATIONS = [
             "type": "object",
             "properties": {
                 "symbol": {"type": "string", "description": "Mã chứng khoán"},
-                "limit": {"type": "integer", "description": "Số tin tức tối đa (mặc định 5)", "default": 5},
+                "limit": {
+                    "type": "integer",
+                    "description": "Số tin tức tối đa (mặc định 5)",
+                    "default": 5,
+                },
             },
             "required": ["symbol"],
         },
@@ -141,12 +181,65 @@ TOOL_DECLARATIONS = [
             "required": ["symbol"],
         },
     },
+    {
+        "name": "get_gold_overview",
+        "description": "Lấy thông tin bảng giá vàng trực tuyến mới nhất (SJC, Nhẫn 9999, PNJ, DOJI, Vàng thế giới XAU/USD). Trả về giá mua, giá bán, chênh lệch spread và % biến động.",
+        "parameters": {
+            "type": "object",
+            "properties": {},
+        },
+    },
+    {
+        "name": "get_gold_history",
+        "description": "Lấy chuỗi lịch sử giá vàng theo loại vàng (SJC, RING_SJC, PNJ, DOJI, XAU_USD) và khoảng thời gian (1D, 1W, 1M, 1Y).",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "code": {
+                    "type": "string",
+                    "description": "Mã loại vàng: SJC, RING_SJC (nhẫn 9999), PNJ, DOJI, XAU_USD. Mặc định SJC.",
+                },
+                "timeframe": {
+                    "type": "string",
+                    "enum": ["1D", "1W", "1M", "1Y"],
+                    "description": "Khung thời gian: 1D, 1W, 1M, 1Y. Mặc định 1M.",
+                },
+            },
+        },
+    },
+    {
+        "name": "get_forex_overview",
+        "description": "Lấy bảng tỷ giá ngoại tệ ngân hàng mới nhất (USD, EUR, JPY, GBP, AUD, CAD, SGD, CNY). Trả về tỷ giá mua tiền mặt, mua chuyển khoản, bán ra và % thay đổi.",
+        "parameters": {
+            "type": "object",
+            "properties": {},
+        },
+    },
+    {
+        "name": "get_forex_history",
+        "description": "Lấy lịch sử tỷ giá theo cặp ngoại tệ (USD, EUR, JPY, GBP, AUD, CAD, SGD, CNY) và khoảng thời gian (1D, 1W, 1M, 1Y).",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "pair": {
+                    "type": "string",
+                    "description": "Mã ngoại tệ: USD, EUR, JPY, GBP, AUD, CAD, SGD, CNY. Mặc định USD.",
+                },
+                "timeframe": {
+                    "type": "string",
+                    "enum": ["1D", "1W", "1M", "1Y"],
+                    "description": "Khung thời gian: 1D, 1W, 1M, 1Y. Mặc định 1M.",
+                },
+            },
+        },
+    },
 ]
 
 
 # ---------------------------------------------------------------------------
 # Tool Execution
 # ---------------------------------------------------------------------------
+
 
 async def execute_tool(name: str, args: dict) -> str:
     """Thực thi tool và trả về kết quả dạng JSON string."""
@@ -162,7 +255,11 @@ async def execute_tool(name: str, args: dict) -> str:
                 end_date=args.get("end_date"),
             )
             # Chỉ trả về 30 điểm gần nhất để tránh token quá lớn
-            return json.dumps({"history": result[-30:], "total": len(result)}, ensure_ascii=False, default=str)
+            return json.dumps(
+                {"history": result[-30:], "total": len(result)},
+                ensure_ascii=False,
+                default=str,
+            )
 
         elif name == "get_financial_report":
             result = await get_financial_report(
@@ -186,6 +283,28 @@ async def execute_tool(name: str, args: dict) -> str:
             )
             return json.dumps(result, ensure_ascii=False, default=str)
 
+        elif name == "get_gold_overview":
+            result = await get_gold_overview()
+            return json.dumps(result, ensure_ascii=False, default=str)
+
+        elif name == "get_gold_history":
+            result = await get_gold_history(
+                code=args.get("code", "SJC"),
+                timeframe=args.get("timeframe", "1M"),
+            )
+            return json.dumps(result, ensure_ascii=False, default=str)
+
+        elif name == "get_forex_overview":
+            result = await get_forex_overview()
+            return json.dumps(result, ensure_ascii=False, default=str)
+
+        elif name == "get_forex_history":
+            result = await get_forex_history(
+                pair=args.get("pair", "USD"),
+                timeframe=args.get("timeframe", "1M"),
+            )
+            return json.dumps(result, ensure_ascii=False, default=str)
+
         else:
             return json.dumps({"error": f"Unknown tool: {name}"})
 
@@ -195,27 +314,185 @@ async def execute_tool(name: str, args: dict) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Chat History Session Endpoints
+# ---------------------------------------------------------------------------
+
+
+@router.get("/sessions", response_model=list[ChatSessionSummary])
+async def list_sessions(db: AsyncSession = Depends(get_session)):
+    """Lấy danh sách tất cả các phiên chat."""
+    stmt = select(ChatHistorySession).order_by(ChatHistorySession.updated_at.desc())
+    res = await db.execute(stmt)
+    sessions = res.scalars().all()
+    return [
+        ChatSessionSummary(
+            id=s.id,
+            title=s.title,
+            created_at=s.created_at.isoformat() if s.created_at else None,
+            updated_at=s.updated_at.isoformat() if s.updated_at else None,
+        )
+        for s in sessions
+    ]
+
+
+@router.post("/sessions", response_model=ChatSessionSummary)
+async def create_session(db: AsyncSession = Depends(get_session)):
+    """Tạo một phiên chat mới."""
+    session_id = str(uuid.uuid4())
+    session_obj = ChatHistorySession(id=session_id, title="Cuộc trò chuyện mới")
+    db.add(session_obj)
+    await db.commit()
+    await db.refresh(session_obj)
+    return ChatSessionSummary(
+        id=session_obj.id,
+        title=session_obj.title,
+        created_at=session_obj.created_at.isoformat() if session_obj.created_at else None,
+        updated_at=session_obj.updated_at.isoformat() if session_obj.updated_at else None,
+    )
+
+
+@router.get("/sessions/{session_id}", response_model=ChatSessionDetail)
+async def get_session_detail(session_id: str, db: AsyncSession = Depends(get_session)):
+    """Lấy thông tin chi tiết và danh sách tin nhắn của 1 phiên chat."""
+    stmt = select(ChatHistorySession).where(ChatHistorySession.id == session_id)
+    res = await db.execute(stmt)
+    session_obj = res.scalar_one_or_none()
+    if not session_obj:
+        raise HTTPException(status_code=404, detail="Phiên chat không tồn tại")
+
+    msg_stmt = (
+        select(ChatHistoryMessage)
+        .where(ChatHistoryMessage.session_id == session_id)
+        .order_by(ChatHistoryMessage.id.asc())
+    )
+    msg_res = await db.execute(msg_stmt)
+    messages = msg_res.scalars().all()
+
+    return ChatSessionDetail(
+        id=session_obj.id,
+        title=session_obj.title,
+        created_at=session_obj.created_at.isoformat() if session_obj.created_at else None,
+        updated_at=session_obj.updated_at.isoformat() if session_obj.updated_at else None,
+        messages=[ChatMessage(role=m.role, content=m.content) for m in messages],
+    )
+
+
+@router.delete("/sessions/{session_id}")
+async def delete_session(session_id: str, db: AsyncSession = Depends(get_session)):
+    """Xóa một phiên chat và các tin nhắn liên quan."""
+    del_msg = delete(ChatHistoryMessage).where(ChatHistoryMessage.session_id == session_id)
+    await db.execute(del_msg)
+
+    del_sess = delete(ChatHistorySession).where(ChatHistorySession.id == session_id)
+    await db.execute(del_sess)
+
+    await db.commit()
+    return {"status": "ok", "message": "Đã xóa phiên chat"}
+
+
+# ---------------------------------------------------------------------------
 # Chat Endpoint
 # ---------------------------------------------------------------------------
 
+
 @router.post("", response_model=ChatResponse)
-async def chat(request: ChatRequest) -> ChatResponse:
+async def chat(
+    request: ChatRequest,
+    db: AsyncSession = Depends(get_session),
+) -> ChatResponse:
     """
     Chat endpoint with Gemini Function Calling (Tool Use).
     AI tự quyết định khi nào cần gọi tools để tra cứu dữ liệu.
+    Tự động lưu lịch sử vào SQLite DB và áp dụng Context Preference của người dùng.
     """
+    session_id = request.session_id
+
+    # Đảm bảo Session tồn tại trong DB nếu có session_id
+    session_obj = None
+    if session_id:
+        stmt = select(ChatHistorySession).where(ChatHistorySession.id == session_id)
+        res = await db.execute(stmt)
+        session_obj = res.scalar_one_or_none()
+
+    if not session_obj:
+        session_id = str(uuid.uuid4())
+        # Cắt ngắn câu hỏi làm tiêu đề cho session
+        title = request.message[:35] + ("..." if len(request.message) > 35 else "")
+        session_obj = ChatHistorySession(id=session_id, title=title)
+        db.add(session_obj)
+        await db.commit()
+        await db.refresh(session_obj)
+    elif session_obj.title == "Cuộc trò chuyện mới":
+        session_obj.title = request.message[:35] + ("..." if len(request.message) > 35 else "")
+        session_obj.updated_at = datetime.utcnow()
+        await db.commit()
+
+    # Load User Preference làm Context bổ sung
+    pref_stmt = select(UserPreferenceModel).where(UserPreferenceModel.id == 1)
+    pref_res = await db.execute(pref_stmt)
+    pref = pref_res.scalar_one_or_none()
+
+    pref_context_lines = []
+    if pref:
+        if pref.role_title:
+            pref_context_lines.append(f"- Xưng hô / Vai trò mong muốn của người dùng: {pref.role_title}")
+        if pref.interested_topics:
+            pref_context_lines.append(f"- Lĩnh vực / Mã chứng khoán / Chủ đề người dùng đặc biệt quan tâm: {pref.interested_topics}")
+        if pref.response_style == "sut_tich":
+            pref_context_lines.append("- Phong cách phản hồi: Ngắn gọn, súc tích, đi thẳng vào trọng tâm.")
+        elif pref.response_style == "chi_tiet":
+            pref_context_lines.append("- Phong cách phản hồi: Chi tiết, giải thích rõ ràng kèm đầy đủ lập luận.")
+        elif pref.response_style == "phan_tich":
+            pref_context_lines.append("- Phong cách phản hồi: Phân tích chuyên sâu, trình bày có cấu trúc kèm bảng biểu hoặc số liệu.")
+        if pref.custom_instructions:
+            pref_context_lines.append(f"- Yêu cầu bổ sung của người dùng: {pref.custom_instructions}")
+
+    user_pref_prompt = ""
+    if pref_context_lines:
+        user_pref_prompt = (
+            "\n\nTHÔNG TIN NGƯỜI DÙNG & PHONG CÁCH MONG MUỐN (USER PREFERENCE CONTEXT):\n"
+            + "\n".join(pref_context_lines)
+            + "\n(Hãy luôn điều chỉnh giọng văn và ưu tiên thông tin theo sở thích trên của người dùng.)\n"
+        )
+
     try:
+        # Build pinned articles context string
+        pinned_context_str = ""
+        pinned_list = request.pinned_articles or []
+        if pinned_list:
+            pinned_pieces = []
+            for i, art in enumerate(pinned_list, 1):
+                title = art.get("title", art.get("article_title", "Bài báo"))
+                site = art.get("site", "Nguồn tin")
+                content = art.get("content", art.get("text", art.get("sapo", "")))
+                url = art.get("url", art.get("article_url", ""))
+                pub = art.get("published_at", "")
+                rel_time = _format_relative_date(pub) if pub else ""
+                time_info = f" ({rel_time})" if rel_time else ""
+                pinned_pieces.append(
+                    f"[Bài báo đã ghim {i}]\nTiêu đề: {title}\nNguồn: {site} | Ngày đăng: {pub}{time_info}\nURL: {url}\nNội dung:\n{content}"
+                )
+            pinned_context_str = "📌 BÀI BÁO NGƯỜI DÙNG ĐÃ GHIM VÀO CONTEXT:\n" + "\n---\n".join(pinned_pieces)
+
+        # Combine cached articles with pinned articles for search_articles cache awareness
+        combined_cache = (request.cached_articles or []) + pinned_list
+
         # 1. RAG cho tin tức
         conversation_context = _build_conversation_context(
             request.history,
-            cached_articles=request.cached_articles if request.cached_articles else None
+            cached_articles=combined_cache if combined_cache else None,
         )
+        if pinned_context_str:
+            conversation_context = (pinned_context_str + "\n\n" + conversation_context).strip()
 
-        logger.info(f"Searching context for query: {request.message} | has_cache={bool(request.cached_articles)}")
+        logger.info(
+            f"Searching context for query: {request.message} | session={session_id} | "
+            f"has_cache={bool(request.cached_articles)} | pinned_count={len(pinned_list)}"
+        )
         chunks, is_fallback = await search_articles(
             query=request.message,
             limit=5,
-            cached_articles=request.cached_articles if request.cached_articles else None,
+            cached_articles=combined_cache if combined_cache else None,
             conversation_context=conversation_context,
         )
 
@@ -229,43 +506,59 @@ async def chat(request: ChatRequest) -> ChatResponse:
                 text = chunk.get("text", "")
                 pub_date = chunk.get("published_at", "")
                 rel_time = _format_relative_date(pub_date)
-                time_str = f" | Ngày đăng: {pub_date}" + (f" ({rel_time})" if rel_time else "")
+                time_str = f" | Ngày đăng: {pub_date}" + (
+                    f" ({rel_time})" if rel_time else ""
+                )
 
                 context_pieces.append(
-                    f"[Tài liệu {i}]\nTiêu đề: {title}\nNguồn: {site}{time_str}\nNội dung: {text}\nURL: {url}"
+                    f"[Tài liệu RAG {i}]\nTiêu đề: {title}\nNguồn: {site}{time_str}\nNội dung: {text}\nURL: {url}"
                 )
             context_str = "\n---\n".join(context_pieces)
+
+        # Merge pinned context and search RAG context
+        full_context_blocks = []
+        if pinned_context_str:
+            full_context_blocks.append(pinned_context_str)
+        if context_str:
+            full_context_blocks.append("🔍 TÀI LIỆU TRA CỨU TỪ CƠ SỞ DỮ LIỆU TIN TỨC:\n" + context_str)
+        
+        final_context_text = "\n\n====================\n\n".join(full_context_blocks) if full_context_blocks else "Không tìm thấy dữ liệu liên quan."
 
         sources_info = sources_registry.get_sources_prompt_summary()
 
         if is_fallback:
             system_instruction = (
-                "Bạn là trợ lý ảo thông minh phân tích tin tức và chứng khoán.\n"
+                "Bạn là trợ lý ảo thông minh phân tích tin tức, chứng khoán, giá vàng và ngoại tệ.\n"
                 f"{sources_info}\n\n"
+                + user_pref_prompt +
                 "Câu hỏi của người dùng KHÔNG tìm được kết quả chính xác nào trong cơ sở dữ liệu tin tức (do bộ lọc quá gắt). "
                 "Thay vào đó, hệ thống đã tìm được một số bài viết CÓ THỂ LIÊN QUAN (gợi ý):\n"
-                "NGUỒN GỢI Ý:\n" + context_str + "\n\n"
+                "NGUỒN GỢI Ý:\n" + final_context_text + "\n\n"
                 "Nhiệm vụ của bạn:\n"
                 "1. THÔNG BÁO rõ ràng cho người dùng rằng KHÔNG tìm được kết quả chính xác từ các nguồn yêu cầu.\n"
                 "2. GỢI Ý 2-3 bài viết từ danh sách trên có thể liên quan, kèm tiêu đề và URL.\n"
-                "3. Dùng các tools chứng khoán (get_stock_overview, v.v.) khi người dùng hỏi về dữ liệu cổ phiếu, báo cáo tài chính.\n"
-                "4. TUYỆT ĐỐI KHÔNG tự suy diễn hay của mình đưa ra thông tin không có trong nguồn gợi ý trên."
+                "3. Dùng các tools chứng khoán (get_stock_overview, v.v.), giá vàng (get_gold_overview, v.v.), và ngoại tệ (get_forex_overview, v.v.) khi người dùng hỏi về cổ phiếu, báo cáo tài chính, giá vàng SJC/thế giới hoặc tỷ giá ngoại tệ.\n"
+                "4. TUYỆT ĐỐI KHÔNG tự suy diễn hay đưa ra thông tin không có trong nguồn gợi ý trên."
             )
         else:
             system_instruction = (
-                "Bạn là trợ lý ảo thông minh chuyên phân tích tin tức và dữ liệu chứng khoán Việt Nam.\n"
+                "Bạn là trợ lý ảo thông minh chuyên phân tích tin tức, chứng khoán, giá vàng và tỷ giá ngoại tệ Việt Nam.\n"
                 f"{sources_info}\n\n"
+                + user_pref_prompt +
                 "HƯỚNG DẪN TRẢ LỜI:\n"
-                "1. Trả lời câu hỏi dựa trên các tài liệu trong NGỮ CẢNH bên dưới.\n"
-                "2. Dùng các tools chứng khoán (get_stock_overview, v.v.) khi người dùng hỏi về dữ liệu cổ phiếu, phân tích kỹ thuật, báo cáo tài chính.\n"
+                "1. Trả lời câu hỏi dựa trên các bài báo đã ghim và tài liệu trong NGỮ CẢNH bên dưới. Hãy ưu tiên phân tích bài báo đã ghim trước nếu người dùng có ghim bài báo.\n"
+                "2. Dùng các tools chứng khoán (get_stock_overview, v.v.), giá vàng (get_gold_overview, get_gold_history), và ngoại tệ (get_forex_overview, get_forex_history) khi người dùng hỏi về dữ liệu số cổ phiếu, giá vàng SJC/nhẫn/thế giới, hoặc tỷ giá ngoại tệ USD/EUR/JPY/GBP.\n"
                 "3. Trích dẫn nguồn rõ ràng cho mọi thông tin (tiêu đề, URL).\n"
                 f"Ngày hiện tại: {datetime.now().strftime('%d/%m/%Y')}\n\n"
-                "NGỮ CẢNH:\n" + (context_str if context_str else "Không tìm thấy dữ liệu liên quan.")
+                "NGỮ CẢNH:\n"
+                + final_context_text
             )
 
         reply = ""
         if settings.gemini_api_key:
-            logger.info(f"Using Gemini with Function Tools (history turns: {len(request.history)}).")
+            logger.info(
+                f"Using Gemini with Function Tools (history turns: {len(request.history)})."
+            )
             reply = await generate_gemini_content_with_tools(
                 api_key=settings.gemini_api_key,
                 model=settings.gemini_model_chat,
@@ -278,7 +571,9 @@ async def chat(request: ChatRequest) -> ChatResponse:
         else:
             # Fallback to Ollama (no tool support)
             logger.info("Using Ollama for chat generation.")
-            messages = list(request.history) + [ChatMessage(role="user", content=request.message)]
+            messages = list(request.history) + [
+                ChatMessage(role="user", content=request.message)
+            ]
             reply = await generate_ollama_content(
                 model=settings.model_name,
                 contents=messages,
@@ -289,6 +584,18 @@ async def chat(request: ChatRequest) -> ChatResponse:
         logger.exception(f"Error in chat endpoint: {exc}")
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
+    # Lưu 2 tin nhắn mới vào SQLite DB
+    user_msg_db = ChatHistoryMessage(session_id=session_id, role="user", content=request.message)
+    model_msg_db = ChatHistoryMessage(session_id=session_id, role="model", content=reply)
+    db.add(user_msg_db)
+    db.add(model_msg_db)
+
+    # Cập nhật updated_at của Session
+    if session_obj:
+        session_obj.updated_at = datetime.utcnow()
+
+    await db.commit()
+
     updated_history = [
         *request.history,
         ChatMessage(role="user", content=request.message),
@@ -297,6 +604,8 @@ async def chat(request: ChatRequest) -> ChatResponse:
 
     return ChatResponse(
         reply=reply,
+        session_id=session_id,
         history=updated_history,
         cached_articles=chunks,
     )
+

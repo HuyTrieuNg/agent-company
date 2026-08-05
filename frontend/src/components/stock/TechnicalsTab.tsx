@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { TechnicalsResponse } from "@/lib/stockApi";
+import InteractivePriceChart from "@/components/common/InteractivePriceChart";
 
 function fmt(val: number | null | undefined, digits = 2): string {
   if (val == null || isNaN(Number(val))) return "—";
@@ -175,7 +176,13 @@ export default function TechnicalsTab({
           <span className="text-xs text-slate-500">{data.data_points} phiên</span>
         </div>
         {price_history.length > 0 ? (
-          <MiniLineChart data={price_history} />
+          <InteractivePriceChart
+            data={price_history.map((d) => ({ date: d.time, close: d.close }))}
+            series={[{ key: "close", label: "Giá đóng cửa", color: "#8b5cf6" }]}
+            title={`Biểu đồ giá lịch sử (${data.timeframe} - ${data.data_points} phiên)`}
+            unit="đ"
+            height={240}
+          />
         ) : (
           <div className="h-52 flex items-center justify-center text-slate-600">Không có dữ liệu</div>
         )}

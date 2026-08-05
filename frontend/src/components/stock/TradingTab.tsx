@@ -1,65 +1,14 @@
 "use client";
 
-import { useState, useEffect, useRef, memo } from "react";
+import { useState, memo } from "react";
 import { TradingResponse, StockCandle } from "@/lib/stockApi";
+import InteractivePriceChart from "@/components/common/InteractivePriceChart";
 
 function fmt(val: unknown, digits = 0): string {
   const n = Number(val);
   if (isNaN(n)) return "—";
   return n.toLocaleString("vi-VN", { maximumFractionDigits: digits });
 }
-
-const MiniChart = memo(function MiniChart({ data }: { data: StockCandle[] }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas || data.length === 0) return;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    const closes = data.map((d) => Number(d.close)).filter((v) => !isNaN(v));
-    if (closes.length < 2) return;
-
-    const W = canvas.width;
-    const H = canvas.height;
-    const min = Math.min(...closes);
-    const max = Math.max(...closes);
-    const range = max - min || 1;
-    const pad = 10;
-
-    ctx.clearRect(0, 0, W, H);
-
-    // Gradient fill
-    const gradient = ctx.createLinearGradient(0, pad, 0, H - pad);
-    gradient.addColorStop(0, "rgba(139,92,246,0.3)");
-    gradient.addColorStop(1, "rgba(139,92,246,0)");
-
-    const xStep = (W - pad * 2) / (closes.length - 1);
-    const toY = (v: number) => pad + ((max - v) / range) * (H - pad * 2);
-
-    // Draw area
-    ctx.beginPath();
-    ctx.moveTo(pad, toY(closes[0]));
-    closes.forEach((v, i) => ctx.lineTo(pad + i * xStep, toY(v)));
-    ctx.lineTo(pad + (closes.length - 1) * xStep, H);
-    ctx.lineTo(pad, H);
-    ctx.closePath();
-    ctx.fillStyle = gradient;
-    ctx.fill();
-
-    // Draw line
-    ctx.beginPath();
-    ctx.moveTo(pad, toY(closes[0]));
-    closes.forEach((v, i) => ctx.lineTo(pad + i * xStep, toY(v)));
-    const isUp = closes[closes.length - 1] >= closes[0];
-    ctx.strokeStyle = isUp ? "#10b981" : "#ef4444";
-    ctx.lineWidth = 2;
-    ctx.stroke();
-  }, [data]);
-
-  return <canvas ref={canvasRef} width={900} height={200} className="w-full h-48 rounded-xl" />;
-});
 
 const TradingTable = memo(function TradingTable({
   candles,
@@ -119,7 +68,7 @@ export default function TradingTab({
   if (loading) {
     return (
       <div className="space-y-4 animate-pulse">
-        <div className="h-48 rounded-2xl bg-white/8" />
+        <div className="h-64 rounded-2xl bg-white/8" />
         <div className="h-64 rounded-2xl bg-white/6" />
       </div>
     );
@@ -138,43 +87,51 @@ export default function TradingTab({
   const last = hovered ?? candles[candles.length - 1];
   const isUp = Number(last.close) >= Number(last.open);
 
+  const chartData = candles.map((c) => ({
+    date: String(c.time || c.date || ""),
+    close: Number(c.close),
+    open: Number(c.open),
+    high: Number(c.high),
+    low: Number(c.low),
+  }));
+
   return (
     <div className="flex flex-col gap-5">
-      {/* Chart */}
-      <div className="rounded-2xl border border-white/8 bg-white/4 p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="text-sm font-semibold text-slate-300">Lịch sử giá — {symbol}</h3>
-          <span className="text-xs text-slate-500">{data.count} phiên</span>
-        </div>
-        <MiniChart data={candles} />
-      </div>
+      {/* Interactive Price Chart with X/Y Axes and Hover Tooltip */}
+      <InteractivePriceChart
+        data={chartData}
+        series={[{ key: "close", label: "Giá đóng cửa", color: "#8b5cf6" }]}
+        title={`Biểu đồ lịch sử giá giao dịch — ${symbol} (${data.count} phiên)`}
+        unit="đ"
+        height={280}
+      />
 
-      {/* Hovered details */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {/* Hovered details card */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-6">
         {[
+          { label: "Phiên / Ngày", value: String(last.time || last.date || "—") },
           { label: "Giá mở", value: fmt(last.open) },
           { label: "Giá cao", value: fmt(last.high), color: "#10b981" },
           { label: "Giá thấp", value: fmt(last.low), color: "#ef4444" },
           { label: "Giá đóng", value: fmt(last.close), color: isUp ? "#10b981" : "#ef4444" },
           { label: "Khối lượng", value: fmt(last.volume, 0) },
-          { label: "Ngày", value: String(last.time || last.date || "—") },
         ].map((m) => (
           <div
             key={m.label}
-            className="rounded-2xl border border-white/8 bg-white/4 p-4"
+            className="rounded-2xl border border-white/8 bg-white/4 p-3.5 backdrop-blur-md"
           >
-            <div className="text-xs text-slate-500 mb-1">{m.label}</div>
-            <div className="text-lg font-bold" style={m.color ? { color: m.color } : { color: "#e2e8f0" }}>
+            <div className="text-[11px] text-slate-500 mb-1">{m.label}</div>
+            <div className="text-base font-bold truncate" style={m.color ? { color: m.color } : { color: "#e2e8f0" }}>
               {m.value}
             </div>
           </div>
         ))}
       </div>
 
-      {/* Table */}
+      {/* Trading History Table */}
       <div className="rounded-2xl border border-white/8 bg-white/4 overflow-hidden">
         <div className="border-b border-white/8 px-4 py-3">
-          <h3 className="text-sm font-semibold text-slate-300">Chi tiết phiên giao dịch</h3>
+          <h3 className="text-sm font-semibold text-slate-300">Chi tiết các phiên giao dịch</h3>
         </div>
         <div className="overflow-x-auto max-h-72 overflow-y-auto">
           <TradingTable candles={candles} setHovered={setHovered} />

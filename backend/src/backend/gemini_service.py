@@ -1,7 +1,9 @@
 """Gemini API service for content generation using google-genai SDK."""
+
 import asyncio
 import logging
 from typing import TYPE_CHECKING
+
 from google import genai
 from google.genai import types
 
@@ -47,9 +49,7 @@ def _build_contents(
             )
 
     # Thêm tin nhắn mới của user
-    contents.append(
-        types.Content(role="user", parts=[types.Part(text=message)])
-    )
+    contents.append(types.Content(role="user", parts=[types.Part(text=message)]))
     return contents
 
 
@@ -149,10 +149,14 @@ async def generate_gemini_content(
             last_exception = exc
 
     # If we reached here, all models failed
-    logger.error(f"[Gemini] All models failed in fallback chain. Last error: {last_exception}")
+    logger.error(
+        f"[Gemini] All models failed in fallback chain. Last error: {last_exception}"
+    )
     if last_exception:
         raise last_exception
-    raise Exception("[Gemini] Fallback chain failed without any last exception recorded.")
+    raise Exception(
+        "[Gemini] Fallback chain failed without any last exception recorded."
+    )
 
 
 async def generate_gemini_content_with_tools(
@@ -167,18 +171,23 @@ async def generate_gemini_content_with_tools(
     timeout: float | None = None,
 ) -> str:
     """Generate content with Gemini Function Calling support.
-    
+
     Thực hiện vòng lặp tool calling cho đến khi model không cần gọi thêm tool nào.
     """
     from google.genai.types import (
-        Content, FunctionDeclaration, FunctionResponse, GenerateContentConfig,
-        Part, Schema, Tool,
+        Content,
+        FunctionDeclaration,
+        FunctionResponse,
+        GenerateContentConfig,
+        Part,
+        Schema,
+        Tool,
     )
-    
+
     client = get_gemini_client(api_key)
     models_to_try = [model] if isinstance(model, str) else list(model)
     effective_timeout = timeout if timeout is not None else GEMINI_CALL_TIMEOUT
-    
+
     # Build Gemini tools
     gemini_tools = None
     if tool_declarations:
@@ -198,21 +207,23 @@ async def generate_gemini_content_with_tools(
                 if "enum" in prop_info:
                     schema_kwargs["enum"] = prop_info["enum"]
                 properties[prop_name] = Schema(**schema_kwargs)
-            
-            fn_declarations.append(FunctionDeclaration(
-                name=td["name"],
-                description=td["description"],
-                parameters=Schema(
-                    type="OBJECT",
-                    properties=properties,
-                    required=params.get("required", []),
-                ),
-            ))
+
+            fn_declarations.append(
+                FunctionDeclaration(
+                    name=td["name"],
+                    description=td["description"],
+                    parameters=Schema(
+                        type="OBJECT",
+                        properties=properties,
+                        required=params.get("required", []),
+                    ),
+                )
+            )
         gemini_tools = [Tool(function_declarations=fn_declarations)]
-    
+
     # Build initial contents
     contents = _build_contents(history, message)
-    
+
     config = GenerateContentConfig(
         system_instruction=system_instruction,
         max_output_tokens=8192,
@@ -220,9 +231,9 @@ async def generate_gemini_content_with_tools(
         tools=gemini_tools,
         automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
     )
-    
+
     last_exception = None
-    
+
     for iteration in range(max_iterations):
         # Try each model in fallback chain
         response = None
@@ -245,50 +256,54 @@ async def generate_gemini_content_with_tools(
                 logger.error(f"[Gemini Tools] Timeout on model '{current_model}'")
                 last_exception = exc
             except Exception as exc:
-                logger.warning(f"[Gemini Tools] Error on model '{current_model}': {exc}")
+                logger.warning(
+                    f"[Gemini Tools] Error on model '{current_model}': {exc}"
+                )
                 last_exception = exc
-        
+
         if response is None:
             if last_exception:
                 raise last_exception
             raise Exception("[Gemini Tools] All models failed.")
-        
+
         # Check for function calls
         function_calls = []
         if response.candidates:
             for candidate in response.candidates:
                 if candidate.content and candidate.content.parts:
                     for part in candidate.content.parts:
-                        if hasattr(part, 'function_call') and part.function_call:
+                        if hasattr(part, "function_call") and part.function_call:
                             function_calls.append(part.function_call)
-        
+
         if not function_calls:
             # No more function calls — return text
             return response.text or ""
-        
+
         # Execute all function calls
         logger.info(f"[Gemini Tools] Executing {len(function_calls)} function call(s)")
-        
+
         # Add model's response (with function calls) to contents
         contents.append(response.candidates[0].content)
-        
+
         # Execute tools and add results
         tool_results = []
         for fc in function_calls:
             fn_name = fc.name
             fn_args = dict(fc.args) if fc.args else {}
             logger.info(f"[Gemini Tools] Calling tool '{fn_name}' with args: {fn_args}")
-            
+
             result_str = await tool_executor(fn_name, fn_args)
             tool_results.append(
-                Part(function_response=FunctionResponse(
-                    name=fn_name,
-                    response={"result": result_str},
-                ))
+                Part(
+                    function_response=FunctionResponse(
+                        name=fn_name,
+                        response={"result": result_str},
+                    )
+                )
             )
-        
+
         contents.append(Content(role="user", parts=tool_results))
-    
+
     # Max iterations reached — return last text if available
     logger.warning("[Gemini Tools] Max iterations reached.")
     return response.text or "" if response else ""

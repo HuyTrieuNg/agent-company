@@ -18,30 +18,70 @@ from .sources_registry import sources_registry
 
 logger = logging.getLogger(__name__)
 
-# Initialize SentenceTransformer Dense Model
-try:
-    logger.info("Initializing SentenceTransformer model 'intfloat/multilingual-e5-small'...")
-    embedder = SentenceTransformer("intfloat/multilingual-e5-small")
-except Exception as e:
-    logger.error(f"Failed to initialize embedder: {e}")
-    embedder = None
+import asyncio
+from functools import lru_cache
 
-# Initialize FastEmbed BM25 Sparse Model (CPU-friendly)
-try:
-    from fastembed import SparseTextEmbedding
-    logger.info("Initializing FastEmbed BM25 sparse embedder 'Qdrant/bm25'...")
-    sparse_embedder = SparseTextEmbedding(model_name="Qdrant/bm25")
-except Exception as e:
-    logger.warning(f"FastEmbed BM25 sparse embedder not available: {e}")
-    sparse_embedder = None
+# Singletons for Dense and Sparse Embedders (Lazy-loaded)
+_embedder = None
+_sparse_embedder = None
+
+
+def get_dense_embedder():
+    """Lazy-load SentenceTransformer dense embedder (singleton)."""
+    global _embedder
+    if _embedder is None:
+        try:
+            logger.info("Initializing SentenceTransformer model 'intfloat/multilingual-e5-small'...")
+            _embedder = SentenceTransformer("intfloat/multilingual-e5-small")
+            logger.info("SentenceTransformer model initialized successfully.")
+        except Exception as e:
+            logger.error(f"Failed to initialize embedder: {e}")
+            _embedder = None
+    return _embedder
+
+
+def get_sparse_embedder():
+    """Lazy-load FastEmbed BM25 sparse embedder (singleton)."""
+    global _sparse_embedder
+    if _sparse_embedder is None:
+        try:
+            from fastembed import SparseTextEmbedding
+            logger.info("Initializing FastEmbed BM25 sparse embedder 'Qdrant/bm25'...")
+            _sparse_embedder = SparseTextEmbedding(model_name="Qdrant/bm25")
+            logger.info("FastEmbed BM25 sparse embedder initialized successfully.")
+        except Exception as e:
+            logger.warning(f"FastEmbed BM25 sparse embedder not available: {e}")
+            _sparse_embedder = None
+    return _sparse_embedder
+
+
+def _warmup_qdrant_embedders_sync():
+    """Synchronous warmup for dense and sparse embedders."""
+    e = get_dense_embedder()
+    if e:
+        e.encode("query: warmup")
+    se = get_sparse_embedder()
+    if se:
+        list(se.embed(["warmup"]))
+
+
+async def warmup_qdrant_embedders() -> None:
+    """Async warmup for Qdrant embedders in background executor."""
+    loop = asyncio.get_event_loop()
+    try:
+        await loop.run_in_executor(None, _warmup_qdrant_embedders_sync)
+        logger.info("Qdrant embedders (Dense E5 & Sparse BM25) warmup complete.")
+    except Exception as e:
+        logger.warning(f"Qdrant embedders warmup failed (non-fatal): {e}")
 
 
 def get_sparse_vector(text: str) -> SparseVector | None:
     """Tạo sparse vector (BM25) từ text cho Qdrant Hybrid Search."""
-    if not sparse_embedder or not text:
+    se = get_sparse_embedder()
+    if not se or not text:
         return None
     try:
-        embeddings = list(sparse_embedder.embed([text]))
+        embeddings = list(se.embed([text]))
         if embeddings:
             emb = embeddings[0]
             return SparseVector(
@@ -264,12 +304,14 @@ async def ensure_payload_indexes() -> None:
     except Exception as create_err:
         logger.warning(f"[Qdrant] Failed to check/create collection '{collection}': {create_err}")
 
-    # 2. Đảm bảo các payload indexes (Bao gồm url_hash để phục vụ scroll filter)
+    # 2. Đảm bảo các payload indexes (Bao gồm url_hash, chunk_type, category để phục vụ scroll filter)
     indexes = [
         ("published_at", PayloadSchemaType.KEYWORD),  # lưu dạng string 'YYYY-MM-DD'
         ("site",         PayloadSchemaType.KEYWORD),
         ("tags",         PayloadSchemaType.KEYWORD),
-        ("url_hash",     PayloadSchemaType.KEYWORD),  # Fix: Qdrant requiere index for url_hash filter
+        ("url_hash",     PayloadSchemaType.KEYWORD),
+        ("chunk_type",   PayloadSchemaType.KEYWORD),  # Phục vụ lọc bài báo đại diện
+        ("category",     PayloadSchemaType.KEYWORD),  # Phục vụ lọc theo danh mục
     ]
     for field_name, schema_type in indexes:
         try:
@@ -287,6 +329,7 @@ async def ensure_payload_indexes() -> None:
                 logger.warning(f"[Qdrant] Could not create index for '{field_name}': {e}")
 
 
+
 async def extract_structured_query(user_input: str, conversation_context: str = "") -> dict:
     """
     Phân tích câu hỏi và trả về structured query dạng JSON.
@@ -299,6 +342,16 @@ async def extract_structured_query(user_input: str, conversation_context: str = 
     Returns:
         dict với các trường: site, target_sites, exclude_sites, tags, date_from, date_to, semantic_query, needs_retrieval.
     """
+    user_clean = user_input.strip().lower()
+    # Fast heuristic check cho chitchat / chào hỏi / cảm ơn đơn giản
+    chitchat_phrases = {
+        "chào", "xin chào", "hello", "hi", "cảm ơn", "cam on", "thanks", "tốt quá", "ok", "okay",
+        "bạn là ai", "bạn là ai?", "bạn có thể làm gì", "bạn làm được gì", "tạm biệt", "bye", "giúp tôi", "giúp tôi với"
+    }
+    if user_clean in chitchat_phrases or (len(user_clean.split()) <= 2 and user_clean in chitchat_phrases):
+        logger.info(f"Fast-path chitchat detected for: '{user_input}' -> needs_retrieval=False")
+        return {"semantic_query": user_input, "needs_retrieval": False}
+
     today = datetime.now().strftime("%Y-%m-%d")
     sources_summary = sources_registry.get_sources_prompt_summary()
 
@@ -306,23 +359,27 @@ async def extract_structured_query(user_input: str, conversation_context: str = 
     context_hint = ""
     if conversation_context:
         context_hint = (
-            f"\n\nNGỮ CẢNH HỘI THOẠI TRƯỚC ĐÓ:\n{conversation_context}\n\n"
-            "Dựa vào ngữ cảnh hội thoại trên, hãy phân tích kỹ nhu cầu tìm kiếm:\n"
-            "- Nếu câu hỏi là câu hỏi nối tiếp (follow-up) làm rõ, giải thích thêm, tóm tắt, so sánh hoặc hỏi chi tiết về nội dung ĐÃ CÓ trong các bài viết ở ngữ cảnh trước đó:\n"
+            f"\n\nNGỮ CẢNH HỘI THOẠI & BÀI BÁO ĐÃ GHIM TRƯỚC ĐÓ:\n{conversation_context}\n\n"
+            "Dựa vào ngữ cảnh hội thoại và bài báo đã có trên, hãy phân tích kỹ nhu cầu tìm kiếm:\n"
+            "- Nếu câu hỏi là câu hỏi nối tiếp (follow-up), làm rõ, giải thích thêm, tóm tắt, so sánh hoặc hỏi chi tiết về nội dung ĐÃ CÓ trong ngữ cảnh/bài báo đã ghim:\n"
             "  + ĐẶT `needs_retrieval` = false (tuyệt đối không tìm kiếm lại dữ liệu mới từ DB).\n"
             "- Nếu người dùng hỏi câu dạng 'Các nguồn khác thì sao?', 'Báo khác nói gì?', 'Còn các trang khác?':\n"
             "  + ĐẶT `needs_retrieval` = true.\n"
             "  + Liệt kê tên các trang web ĐÃ XUẤT HIỆN trong ngữ cảnh trước đó vào danh sách `exclude_sites` (ví dụ: ['cafef']).\n"
             "  + Giữ nguyên `semantic_query` là chủ đề cốt lõi đang thảo luận ở các lượt trước.\n"
-            "- Nếu câu hỏi yêu cầu chủ đề mới, bài báo mới, hoặc khoảng thời gian khác:\n"
+            "- Nếu người dùng yêu cầu rõ ràng muốn TÌM BÀI BÁO MỚI, nguồn tin mới, hoặc khoảng thời gian khác:\n"
             "  + ĐẶT `needs_retrieval` = true.\n\n"
         )
 
-    # Cập nhật context_hint để phân biệt rõ câu hỏi chứng khoán
-    stock_hint = (
-        "- Nếu câu hỏi hoàn toàn về DỮ LIỆU CHỨNG KHOÁN (giá cổ phiếu, biểu đồ, lịch sử giao dịch, "
-        "báo cáo tài chính, chỉ số kỹ thuật như P/E, EPS, MACD, RSI, khối lượng giao dịch) và KHÔNG HỎI VỀ TIN TỨC BÁO CHÍ:\n"
-        "  + ĐẶT `needs_retrieval` = false (hệ thống có công cụ tính toán riêng, không cần tìm báo cáo).\n"
+    # Hướng dẫn nghiêm ngặt cho tool calls và chitchat
+    tool_and_chitchat_hint = (
+        "- Nếu câu hỏi là CHÀO HỎI / XÃ GIAO / GIAO TIẾP THÔNG THƯỜNG ('xin chào', 'bạn là ai', 'cảm ơn', 'hôm nay thế nào', 'giúp tôi với', v.v.):\n"
+        "  + ĐẶT `needs_retrieval` = false.\n"
+        "- Nếu câu hỏi thuần túy về DỮ LIỆU TÀI CHÍNH / CÔNG CỤ TOOL CALL (giá cổ phiếu, biểu đồ, lịch sử giao dịch, "
+        "báo cáo tài chính, P/E, EPS, MACD, RSI, giá vàng SJC, tỷ giá ngoại tệ USD/EUR/JPY, v.v.) và KHÔNG HỎI VỀ BÀI BÁO TIN TỨC:\n"
+        "  + ĐẶT `needs_retrieval` = false (hệ thống có tool API riêng để lấy dữ liệu số realtime, không cần search bài báo).\n"
+        "- Nếu câu hỏi yêu cầu giải thích khái niệm tổng quát, lập trình, tư vấn chung không liên quan đến bài báo cụ thể:\n"
+        "  + ĐẶT `needs_retrieval` = false.\n"
     )
 
     system_prompt = (
@@ -338,19 +395,23 @@ async def extract_structured_query(user_input: str, conversation_context: str = 
         "- Tập trung vào CHỦ THỂ và SỰ KIỆN cốt lõi — những từ xuất hiện trong nội dung bài báo.\n"
         "- Không bao gồm thông tin về website hay khoảng thời gian.\n\n"
         "VÍ DỤ (few-shot):\n"
-        "  Input:  'Tin tức giá vàng 2 ngày nay'\n"
+        "  Input:  'Xin chào bạn'\n"
+        "  Output: {\"semantic_query\": \"xin chào\", \"needs_retrieval\": false}\n\n"
+        "  Input:  'Giá cổ phiếu FPT hôm nay bao nhiêu?'\n"
+        "  Output: {\"semantic_query\": \"giá cổ phiếu FPT\", \"needs_retrieval\": false}\n\n"
+        "  Input:  'Cập nhật giá vàng SJC hôm nay'\n"
+        "  Output: {\"semantic_query\": \"giá vàng SJC\", \"needs_retrieval\": false}\n\n"
+        "  Input:  'Báo cáo tài chính quý 1 của HPG thế nào?'\n"
+        "  Output: {\"semantic_query\": \"báo cáo tài chính HPG\", \"needs_retrieval\": false}\n\n"
+        "  Input:  'Tin tức biến động giá vàng 2 ngày nay'\n"
         "  Output: {\"semantic_query\": \"giá vàng biến động\", \"needs_retrieval\": true}\n\n"
-        "  Input:  'Có tin gì về Bitcoin trên Saigon Times không?'\n"
+        "  Input:  'Có bài báo nào nói về Bitcoin trên Saigon Times không?'\n"
         "  Output: {\"semantic_query\": \"Bitcoin tiền mã hóa\", \"target_sites\": [\"thesaigontimes\"], \"needs_retrieval\": true}\n\n"
         "  Input:  'Tóm tắt thêm thông tin này cho tôi' (Đã có bài viết ở ngữ cảnh trước)\n"
         "  Output: {\"semantic_query\": \"tóm tắt thông tin\", \"needs_retrieval\": false}\n\n"
         "  Input:  'Các nguồn khác nói gì về vấn đề này?' (Ngữ cảnh cũ đã dùng cafef)\n"
         "  Output: {\"semantic_query\": \"<chủ đề cũ>\", \"exclude_sites\": [\"cafef\"], \"needs_retrieval\": true}\n\n"
-        "  Input:  'Giá cổ phiếu FPT hôm nay bao nhiêu?'\n"
-        "  Output: {\"semantic_query\": \"giá cổ phiếu FPT\", \"needs_retrieval\": false}\n\n"
-        "  Input:  'Báo cáo tài chính quý 1 của HPG thế nào?'\n"
-        "  Output: {\"semantic_query\": \"báo cáo tài chính HPG\", \"needs_retrieval\": false}\n\n"
-        + stock_hint
+        + tool_and_chitchat_hint
         + context_hint
         + "CẤU TRÚC JSON:\n"
         "{\n"
@@ -364,9 +425,9 @@ async def extract_structured_query(user_input: str, conversation_context: str = 
         "  \"needs_retrieval\": false\n"
         "}\n"
         "QUY TẮC QUAN TRỌNG cho 'needs_retrieval':\n"
-        "- Giá trị PHẢI là boolean JSON thuần túy: true hoặc false (KHÔNG bọc trong dấu ngoặc kép, KHÔNG dùng chữ khác).\n"
-        "- Đặt FALSE khi: câu hỏi nối tiếp/follow-up có thể trả lời hoàn toàn từ nội dung bài báo đã có trong ngữ cảnh trước đó, HOẶC câu hỏi thuần túy về số liệu chứng khoán.\n"
-        "- Đặt TRUE khi: câu hỏi cần tìm kiếm bài báo mới, chủ đề mới, nguồn tin tức mới."
+        "- Giá trị PHẢI là boolean JSON thuần túy: true hoặc false.\n"
+        "- Đặt FALSE khi: câu hỏi chào hỏi/xã giao, câu hỏi về giá cổ phiếu/vàng/tỷ giá (tool call), câu hỏi có thể trả lời hoàn toàn từ bài báo đã ghim hoặc ngữ cảnh trước đó.\n"
+        "- Đặt TRUE CHỈ KHI: người dùng cần tra cứu bài báo tin tức mới trong Qdrant mà ngữ cảnh hiện tại chưa có."
     )
     
     logger.info(f"Extracting structured query for input: '{user_input}'")
@@ -471,6 +532,7 @@ async def search_articles(
             )
             return cached_articles, False
 
+        embedder = get_dense_embedder()
         if not embedder or not qdrant_client:
             logger.warning("Embedder or Qdrant client not initialized, skipping RAG search.")
             return [], False

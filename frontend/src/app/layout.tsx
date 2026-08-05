@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import Sidebar from "@/components/Sidebar";
+import { ChatProvider } from "@/lib/ChatContext";
 
 const inter = Inter({
   subsets: ["latin", "vietnamese"],
@@ -21,13 +22,16 @@ export default function RootLayout({
   return (
     <html lang="vi">
       <body className={`${inter.className} bg-[#0a0a0f] text-slate-50 antialiased min-h-screen`}>
-        <div className="flex h-screen overflow-hidden">
-          <Sidebar />
-          {/* Main content — offset by sidebar width */}
-          <div className="flex flex-1 flex-col overflow-hidden pl-15 md:pl-50">
-            {children}
+        <ChatProvider>
+          <div className="flex h-screen overflow-hidden">
+            <Sidebar />
+            {/* Main content — offset by sidebar width */}
+            <div className="flex flex-1 flex-col overflow-y-auto pl-15 md:pl-60">
+              {children}
+            </div>
+
           </div>
-        </div>
+        </ChatProvider>
       </body>
     </html>
   );

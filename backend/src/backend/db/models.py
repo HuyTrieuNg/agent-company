@@ -79,3 +79,64 @@ class ResearchSession(Base):
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "completed_at": self.completed_at.isoformat() if self.completed_at else None,
         }
+
+
+class ChatHistorySession(Base):
+    """Stores chat session conversations."""
+    __tablename__ = "chat_history_sessions"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)  # UUID
+    title: Mapped[str] = mapped_column(String(255), default="Cuộc trò chuyện mới")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "title": self.title,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
+class ChatHistoryMessage(Base):
+    """Stores individual messages within a chat history session."""
+    __tablename__ = "chat_history_messages"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    session_id: Mapped[str] = mapped_column(String(36), index=True, nullable=False)
+    role: Mapped[str] = mapped_column(String(20), nullable=False)  # "user" or "model"
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "session_id": self.session_id,
+            "role": self.role,
+            "content": self.content,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
+class UserPreferenceModel(Base):
+    """Stores user preferences for chatbot context generation."""
+    __tablename__ = "user_preferences"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    role_title: Mapped[str] = mapped_column(String(200), default="", nullable=True)  # e.g., "Nhà đầu tư cá nhân"
+    interested_topics: Mapped[str] = mapped_column(Text, default="", nullable=True)  # e.g., "Cổ phiếu VNM, HPG, Vàng SJC"
+    response_style: Mapped[str] = mapped_column(String(100), default="sut_tich", nullable=True)  # e.g., "sut_tich", "chi_tiet", "phan_tich"
+    custom_instructions: Mapped[str] = mapped_column(Text, default="", nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    def to_dict(self) -> dict:
+        return {
+            "id": self.id,
+            "role_title": self.role_title or "",
+            "interested_topics": self.interested_topics or "",
+            "response_style": self.response_style or "sut_tich",
+            "custom_instructions": self.custom_instructions or "",
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+

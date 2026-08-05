@@ -9,6 +9,7 @@ import {
 } from "react";
 import { sendMessage, ChatMessage } from "@/lib/api";
 import Markdown from "@/components/Markdown";
+import { useChatContext } from "@/lib/ChatContext";
 
 const SUGGESTIONS = [
   "Tóm tắt tin tức kinh tế hôm nay",
@@ -108,8 +109,23 @@ const MessageList = memo(function MessageList({
 });
 
 export default function ChatPage() {
-  const [history, setHistory] = useState<ChatMessage[]>([]);
-  const [cachedArticles, setCachedArticles] = useState<Record<string, unknown>[]>([]);
+  const {
+    history,
+    setHistory,
+    cachedArticles,
+    setCachedArticles,
+    pinnedArticles,
+    removePinnedArticle,
+    clearPinnedArticles,
+    activeSessionId,
+    setActiveSessionId,
+    loadSessions,
+    createNewSession,
+    loadingHistory,
+    isPrefModalOpen,
+    setIsPrefModalOpen,
+  } = useChatContext();
+
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -119,7 +135,7 @@ export default function ChatPage() {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [history, loading]);
+  }, [history, loading, loadingHistory]);
 
   useEffect(() => {
     const ta = textareaRef.current;
@@ -138,8 +154,21 @@ export default function ChatPage() {
     setHistory((prev) => [...prev, { role: "user", content: msg }]);
 
     try {
-      const res = await sendMessage(msg, history, cachedArticles);
+      const res = await sendMessage(
+        msg,
+        history,
+        cachedArticles,
+        activeSessionId || undefined,
+        pinnedArticles
+      );
       setHistory(res.history);
+      if (res.session_id && activeSessionId !== res.session_id) {
+        setActiveSessionId(res.session_id);
+        await loadSessions();
+      } else {
+        await loadSessions();
+      }
+
       // Lưu lại articles đã retrieve để dùng cho câu hỏi followup
       if (res.cached_articles?.length) {
         setCachedArticles(res.cached_articles);
@@ -175,33 +204,48 @@ export default function ChatPage() {
           </div>
         </div>
 
-        <span className="ml-auto flex items-center gap-1.25 rounded-full border border-emerald-500/20 bg-emerald-500/8 px-2.5 py-1 text-[11px] font-medium text-emerald-500 whitespace-nowrap">
-          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500 shadow-[0_0_6px_#10b981]" />
-          Online
-        </span>
+        <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={() => setIsPrefModalOpen(true)}
+            className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-slate-300 hover:border-[#8b5cf6] hover:bg-[#8b5cf6]/10 hover:text-white cursor-pointer"
+            title="Cài đặt Context & Preference người dùng"
+          >
+            <span>⚙️</span>
+            <span className="hidden sm:inline">Cài đặt Context</span>
+          </button>
 
-        {history.length > 0 && (
+          <span className="flex items-center gap-1.25 rounded-full border border-emerald-500/20 bg-emerald-500/8 px-2.5 py-1 text-[11px] font-medium text-emerald-500 whitespace-nowrap">
+            <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500 shadow-[0_0_6px_#10b981]" />
+            Online
+          </span>
+
           <button
             id="clear-chat-btn"
-            className="flex h-8 w-8 items-center justify-center rounded-[9px] border border-white/8 bg-transparent text-slate-600 transition-colors duration-200 hover:border-white/15 hover:bg-white/5 hover:text-slate-50 cursor-pointer"
-            onClick={() => { setHistory([]); setCachedArticles([]); setError(null); }}
-            title="Xóa hội thoại"
+            className="flex h-8 w-8 items-center justify-center rounded-[9px] border border-white/8 bg-transparent text-slate-400 transition-colors duration-200 hover:border-white/15 hover:bg-white/5 hover:text-slate-50 cursor-pointer"
+            onClick={createNewSession}
+            title="Tạo cuộc trò chuyện mới"
           >
             <ResetIcon />
           </button>
-        )}
+        </div>
       </header>
 
       {/* ── Messages ── */}
       <main className="flex flex-1 flex-col gap-5 overflow-y-auto px-5 py-7" id="messages-area">
-        <MessageList 
-          history={history} 
-          loading={loading} 
-          onSuggestionClick={(s) => {
-            setInput(s);
-            textareaRef.current?.focus();
-          }}
-        />
+        {loadingHistory ? (
+          <div className="flex flex-1 items-center justify-center py-16 text-slate-500">
+            <span className="h-6 w-6 animate-spin rounded-full border-2 border-white/20 border-t-[#8b5cf6]" />
+          </div>
+        ) : (
+          <MessageList 
+            history={history} 
+            loading={loading} 
+            onSuggestionClick={(s) => {
+              setInput(s);
+              textareaRef.current?.focus();
+            }}
+          />
+        )}
         <div ref={messagesEndRef} />
       </main>
 
@@ -210,6 +254,38 @@ export default function ChatPage() {
         {error && (
           <div className="mb-2.5 flex animate-fade-up items-center gap-2 rounded-lg border border-red-500/25 bg-red-500/8 px-3.5 py-2.5 text-[13px] text-red-400 [animation-duration:0.22s]" id="error-toast">
             ⚠️ {error}
+          </div>
+        )}
+
+        {/* Pinned Context Chips */}
+        {pinnedArticles.length > 0 && (
+          <div className="mb-3 flex items-center justify-between rounded-xl border border-[#8b5cf6]/30 bg-[#8b5cf6]/10 px-3.5 py-2">
+            <div className="flex flex-wrap items-center gap-2 overflow-hidden">
+              <span className="text-xs font-semibold text-[#a78bfa] flex items-center gap-1 shrink-0">
+                📌 Context đã ghim ({pinnedArticles.length}):
+              </span>
+              {pinnedArticles.map((art) => (
+                <div
+                  key={art.url_hash || art.url}
+                  className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/8 px-2 py-0.5 text-xs text-slate-200"
+                >
+                  <span className="max-w-[140px] truncate">{art.title}</span>
+                  <button
+                    onClick={() => removePinnedArticle(art.url_hash || art.url || "")}
+                    className="text-slate-400 hover:text-red-400 cursor-pointer"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <button
+              onClick={clearPinnedArticles}
+              className="text-[11px] text-slate-400 hover:text-white shrink-0 ml-2 cursor-pointer"
+            >
+              Xóa tất cả
+            </button>
           </div>
         )}
 
@@ -227,13 +303,13 @@ export default function ChatPage() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            disabled={loading}
+            disabled={loading || loadingHistory}
           />
           <button
             type="submit"
             id="send-button"
             className="flex h-9.5 w-9.5 shrink-0 cursor-pointer items-center justify-center rounded-lg border-none bg-linear-to-br from-[#8b5cf6] to-[#6d28d9] text-white transition-[transform,box-shadow,opacity] duration-180 hover:enabled:scale-[1.06] hover:enabled:shadow-[0_4px_18px_rgba(139,92,246,0.45)] active:enabled:scale-[0.95] disabled:cursor-not-allowed disabled:opacity-35"
-            disabled={!input.trim() || loading}
+            disabled={!input.trim() || loading || loadingHistory}
             aria-label="Gửi tin nhắn"
           >
             {loading ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/25 border-t-white [animation-duration:0.65s]" /> : <SendIcon />}
