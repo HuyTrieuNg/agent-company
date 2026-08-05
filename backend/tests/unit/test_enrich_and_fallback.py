@@ -408,17 +408,18 @@ class TestSearchArticlesIntegration:
 
     @pytest.mark.asyncio
     @patch("backend.qdrant_service.extract_structured_query", new_callable=AsyncMock)
-    @patch("backend.qdrant_service.embedder")
+    @patch("backend.qdrant_service.get_dense_embedder")
     @patch("backend.qdrant_service._relaxed_fallback_search", new_callable=AsyncMock)
     @patch("backend.qdrant_service._enrich_with_full_article_chunks", new_callable=AsyncMock)
     @patch("backend.qdrant_service.qdrant_client")
     async def test_fallback_triggered_when_strict_query_returns_empty(
-        self, mock_qdrant, mock_enrich, mock_fallback, mock_embedder, mock_extract
+        self, mock_qdrant, mock_enrich, mock_fallback, mock_get_embedder, mock_extract
     ):
         """
         Khi Qdrant strict query trả về 0 candidates, _relaxed_fallback_search
         phải được gọi và kết quả được đánh dấu _is_fallback=True.
         """
+        mock_embedder = mock_get_embedder.return_value
         mock_extract.return_value = {
             "semantic_query": "chủ đề hiếm",
             "needs_retrieval": True,
@@ -451,14 +452,15 @@ class TestSearchArticlesIntegration:
 
     @pytest.mark.asyncio
     @patch("backend.qdrant_service.extract_structured_query", new_callable=AsyncMock)
-    @patch("backend.qdrant_service.embedder")
+    @patch("backend.qdrant_service.get_dense_embedder")
     @patch("backend.qdrant_service._relaxed_fallback_search", new_callable=AsyncMock)
     @patch("backend.qdrant_service._enrich_with_full_article_chunks", new_callable=AsyncMock)
     @patch("backend.qdrant_service.qdrant_client")
     async def test_returns_empty_when_both_strict_and_fallback_return_empty(
-        self, mock_qdrant, mock_enrich, mock_fallback, mock_embedder, mock_extract
+        self, mock_qdrant, mock_enrich, mock_fallback, mock_get_embedder, mock_extract
     ):
         """Không có kết quả từ cả strict lẫn fallback → trả về list rỗng."""
+        mock_embedder = mock_get_embedder.return_value
         mock_extract.return_value = {
             "semantic_query": "không tồn tại",
             "needs_retrieval": True,
@@ -481,18 +483,19 @@ class TestSearchArticlesIntegration:
 
     @pytest.mark.asyncio
     @patch("backend.qdrant_service.extract_structured_query", new_callable=AsyncMock)
-    @patch("backend.qdrant_service.embedder")
+    @patch("backend.qdrant_service.get_dense_embedder")
     @patch("backend.qdrant_service._relaxed_fallback_search", new_callable=AsyncMock)
     @patch("backend.qdrant_service._enrich_with_full_article_chunks", new_callable=AsyncMock)
     @patch("backend.qdrant_service.rerank_documents", new_callable=AsyncMock)
     @patch("backend.qdrant_service.qdrant_client")
     async def test_enrich_called_after_rerank_on_successful_strict_query(
-        self, mock_qdrant, mock_rerank, mock_enrich, mock_fallback, mock_embedder, mock_extract
+        self, mock_qdrant, mock_rerank, mock_enrich, mock_fallback, mock_get_embedder, mock_extract
     ):
         """
         Khi strict query thành công, _enrich_with_full_article_chunks phải được
         gọi sau khi rerank, và _relaxed_fallback_search không được gọi.
         """
+        mock_embedder = mock_get_embedder.return_value
         mock_extract.return_value = {
             "semantic_query": "chứng khoán",
             "needs_retrieval": True,
@@ -529,13 +532,14 @@ class TestSearchArticlesIntegration:
 
     @pytest.mark.asyncio
     @patch("backend.qdrant_service.extract_structured_query", new_callable=AsyncMock)
-    @patch("backend.qdrant_service.embedder")
+    @patch("backend.qdrant_service.get_dense_embedder")
     @patch("backend.qdrant_service._relaxed_fallback_search", new_callable=AsyncMock)
     @patch("backend.qdrant_service.qdrant_client")
     async def test_fallback_not_triggered_when_strict_has_results(
-        self, mock_qdrant, mock_fallback, mock_embedder, mock_extract
+        self, mock_qdrant, mock_fallback, mock_get_embedder, mock_extract
     ):
         """_relaxed_fallback_search không được gọi khi strict query có kết quả."""
+        mock_embedder = mock_get_embedder.return_value
         mock_extract.return_value = {
             "semantic_query": "kinh tế",
             "needs_retrieval": True,

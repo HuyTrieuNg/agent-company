@@ -101,13 +101,14 @@ async def test_search_articles_uses_cache(mock_extract_query):
 
 @pytest.mark.asyncio
 @patch("backend.qdrant_service.extract_structured_query", new_callable=AsyncMock)
-@patch("backend.qdrant_service.embedder")
+@patch("backend.qdrant_service.get_dense_embedder")
 @patch("backend.qdrant_service.qdrant_client")
 @patch("backend.qdrant_service.rerank_documents", new_callable=AsyncMock)
 async def test_search_articles_performs_qdrant_query(
-    mock_rerank, mock_qdrant, mock_embedder, mock_extract_query
+    mock_rerank, mock_qdrant, mock_get_embedder, mock_extract_query
 ):
     # Scenario: needs_retrieval=True, so Qdrant search must happen
+    mock_embedder = mock_get_embedder.return_value
     mock_extract_query.return_value = {
         "semantic_query": "chứng khoán",
         "needs_retrieval": True,
@@ -311,9 +312,9 @@ async def test_search_articles_no_cache_forces_retrieval(mock_extract_query):
 
 @pytest.mark.asyncio
 @patch("backend.qdrant_service.extract_structured_query", new_callable=AsyncMock)
-@patch("backend.qdrant_service.embedder", None)
+@patch("backend.qdrant_service.get_dense_embedder", return_value=None)
 @patch("backend.qdrant_service.qdrant_client", None)
-async def test_search_articles_no_embedder_returns_empty(mock_extract_query):
+async def test_search_articles_no_embedder_returns_empty(mock_get_embedder, mock_extract_query):
     """If embedder is None (load failed), search should return empty list gracefully."""
     mock_extract_query.return_value = {
         "semantic_query": "test",
