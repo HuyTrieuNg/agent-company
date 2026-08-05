@@ -15,6 +15,7 @@ logging.basicConfig(
 )
 
 from .routers.chat import router as chat_router
+from .routers.stock import router as stock_router
 from .db.database import init_db
 from .reranker_service import warmup_reranker
 from .qdrant_service import ensure_payload_indexes
@@ -34,6 +35,11 @@ async def lifespan(app: FastAPI):
     await ensure_payload_indexes()
     # Pre-load Cross-Encoder model so first user request has no cold-start delay
     await warmup_reranker()
+    # Cấu hình Vnstock API Key nếu có
+    if settings.vnstock_api_key:
+        os.environ["VNSTOCK_API_KEY"] = settings.vnstock_api_key
+        logger.info("VNSTOCK_API_KEY has been configured.")
+        
     logger.info("Agent Company API started successfully")
 
     yield  # Application runs here
@@ -58,6 +64,7 @@ app.add_middleware(
 )
 
 app.include_router(chat_router)
+app.include_router(stock_router)
 
 
 @app.get("/health")

@@ -16,7 +16,16 @@ dependencies = [
     "sqlalchemy[asyncio]>=2.0.0",
     "aiosqlite>=0.20.0",
     "fastembed>=0.8.0",
+    "vnstock>=4.0.2",
+    "beautifulsoup4==4.12.3",
+    "vnstock-ezchart>=0.0.3",
 ]
 
 [tool.uv]
 package = true
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+]

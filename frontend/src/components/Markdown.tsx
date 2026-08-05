@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
@@ -9,7 +10,7 @@ interface MarkdownProps {
   content: string;
 }
 
-export default function Markdown({ content }: MarkdownProps) {
+function Markdown({ content }: MarkdownProps) {
   return (
     <ReactMarkdown
       remarkPlugins={[remarkGfm]}
@@ -116,3 +117,5 @@ export default function Markdown({ content }: MarkdownProps) {
     </ReactMarkdown>
   );
 }
+
+export default memo(Markdown);

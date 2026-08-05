@@ -318,33 +318,39 @@ async def extract_structured_query(user_input: str, conversation_context: str = 
             "  + ĐẶT `needs_retrieval` = true.\n\n"
         )
 
+    # Cập nhật context_hint để phân biệt rõ câu hỏi chứng khoán
+    stock_hint = (
+        "- Nếu câu hỏi hoàn toàn về DỮ LIỆU CHỨNG KHOÁN (giá cổ phiếu, biểu đồ, lịch sử giao dịch, "
+        "báo cáo tài chính, chỉ số kỹ thuật như P/E, EPS, MACD, RSI, khối lượng giao dịch) và KHÔNG HỎI VỀ TIN TỨC BÁO CHÍ:\n"
+        "  + ĐẶT `needs_retrieval` = false (hệ thống có công cụ tính toán riêng, không cần tìm báo cáo).\n"
+    )
+
     system_prompt = (
         f"Hôm nay là ngày {today}.\n"
         f"{sources_summary}\n\n"
         "Bạn là chuyên gia phân tích truy vấn tìm kiếm ngữ nghĩa (semantic search). "
         "Nhiệm vụ: trích xuất thông tin từ câu hỏi và trả về JSON theo đúng cấu trúc bên dưới. "
         "KHÔNG thêm bất kỳ trường nào khác.\n\n"
-
         "QUY TẮC QUAN TRỌNG cho trường 'semantic_query':\n"
         "- Viết lại thành một MÔ TẢ NỘI DUNG súc tích, KHÔNG phải câu hỏi hay yêu cầu.\n"
         "- TUYỆT ĐỐI KHÔNG dùng các từ nhiễu: 'tin tức', 'tin mới', 'thông tin', 'cho tôi biết', "
         "'có gì', 'như thế nào', 'tình hình', 'cập nhật', 'mới nhất', 'hỏi về', 'cho tôi xem', 'các nguồn khác', 'báo khác'.\n"
         "- Tập trung vào CHỦ THỂ và SỰ KIỆN cốt lõi — những từ xuất hiện trong nội dung bài báo.\n"
         "- Không bao gồm thông tin về website hay khoảng thời gian.\n\n"
-
         "VÍ DỤ (few-shot):\n"
         "  Input:  'Tin tức giá vàng 2 ngày nay'\n"
         "  Output: {\"semantic_query\": \"giá vàng biến động\", \"needs_retrieval\": true}\n\n"
-
         "  Input:  'Có tin gì về Bitcoin trên Saigon Times không?'\n"
         "  Output: {\"semantic_query\": \"Bitcoin tiền mã hóa\", \"target_sites\": [\"thesaigontimes\"], \"needs_retrieval\": true}\n\n"
-
         "  Input:  'Tóm tắt thêm thông tin này cho tôi' (Đã có bài viết ở ngữ cảnh trước)\n"
         "  Output: {\"semantic_query\": \"tóm tắt thông tin\", \"needs_retrieval\": false}\n\n"
-
         "  Input:  'Các nguồn khác nói gì về vấn đề này?' (Ngữ cảnh cũ đã dùng cafef)\n"
         "  Output: {\"semantic_query\": \"<chủ đề cũ>\", \"exclude_sites\": [\"cafef\"], \"needs_retrieval\": true}\n\n"
-
+        "  Input:  'Giá cổ phiếu FPT hôm nay bao nhiêu?'\n"
+        "  Output: {\"semantic_query\": \"giá cổ phiếu FPT\", \"needs_retrieval\": false}\n\n"
+        "  Input:  'Báo cáo tài chính quý 1 của HPG thế nào?'\n"
+        "  Output: {\"semantic_query\": \"báo cáo tài chính HPG\", \"needs_retrieval\": false}\n\n"
+        + stock_hint
         + context_hint
         + "CẤU TRÚC JSON:\n"
         "{\n"
@@ -359,9 +365,11 @@ async def extract_structured_query(user_input: str, conversation_context: str = 
         "}\n"
         "QUY TẮC QUAN TRỌNG cho 'needs_retrieval':\n"
         "- Giá trị PHẢI là boolean JSON thuần túy: true hoặc false (KHÔNG bọc trong dấu ngoặc kép, KHÔNG dùng chữ khác).\n"
-        "- Đặt FALSE khi: câu hỏi nối tiếp/follow-up có thể trả lời hoàn toàn từ nội dung bài báo đã có trong ngữ cảnh trước đó.\n"
-        "- Đặt TRUE khi: câu hỏi cần tìm kiếm bài báo mới, chủ đề mới, nguồn mới, hoặc khoảng thời gian khác."
+        "- Đặt FALSE khi: câu hỏi nối tiếp/follow-up có thể trả lời hoàn toàn từ nội dung bài báo đã có trong ngữ cảnh trước đó, HOẶC câu hỏi thuần túy về số liệu chứng khoán.\n"
+        "- Đặt TRUE khi: câu hỏi cần tìm kiếm bài báo mới, chủ đề mới, nguồn tin tức mới."
     )
+    
+    logger.info(f"Extracting structured query for input: '{user_input}'")
 
     try:
         if settings.gemini_api_key:
