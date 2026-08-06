@@ -7,6 +7,8 @@ import time
 from datetime import datetime, timedelta
 from typing import Any
 
+import httpx
+
 logger = logging.getLogger(__name__)
 
 # In-Memory TTL Cache
@@ -40,6 +42,36 @@ FOREX_ITEMS = {
 }
 
 
+async def _fetch_live_forex_rates() -> dict[str, float] | None:
+    """Lấy tỷ giá giao dịch thực tế thị trường từ Open Exchange Rates API."""
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+    endpoints = [
+        "https://open.er-api.com/v6/latest/USD",
+        "https://api.exchangerate-api.com/v4/latest/USD",
+    ]
+    for url in endpoints:
+        try:
+            async with httpx.AsyncClient(timeout=6.0, headers=headers) as client:
+                resp = await client.get(url)
+                if resp.status_code == 200:
+                    rates = resp.json().get("rates", {})
+                    usd_vnd = rates.get("VND")
+                    if usd_vnd:
+                        return {
+                            "USD": usd_vnd,
+                            "EUR": usd_vnd / rates.get("EUR", 1.0) if rates.get("EUR") else None,
+                            "JPY": usd_vnd / rates.get("JPY", 1.0) if rates.get("JPY") else None,
+                            "GBP": usd_vnd / rates.get("GBP", 1.0) if rates.get("GBP") else None,
+                            "AUD": usd_vnd / rates.get("AUD", 1.0) if rates.get("AUD") else None,
+                            "CAD": usd_vnd / rates.get("CAD", 1.0) if rates.get("CAD") else None,
+                            "SGD": usd_vnd / rates.get("SGD", 1.0) if rates.get("SGD") else None,
+                            "CNY": usd_vnd / rates.get("CNY", 1.0) if rates.get("CNY") else None,
+                        }
+        except Exception as e:
+            logger.warning(f"Failed to fetch live forex rates from {url}: {e}")
+    return None
+
+
 async def get_forex_overview() -> dict[str, Any]:
     """Lấy bảng tỷ giá ngoại tệ niêm yết mới nhất."""
     cache_key = "forex_overview"
@@ -48,15 +80,22 @@ async def get_forex_overview() -> dict[str, Any]:
 
     items = []
     updated_at = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    live_rates = await _fetch_live_forex_rates()
 
     for key, base in FOREX_ITEMS.items():
         is_jpy = key == "JPY"
         decimals = 2 if is_jpy else 0
 
-        variation = (random.random() - 0.48) * 0.004
-        cash_buy = round(base["cash_buy"] * (1 + variation), decimals)
-        transfer_buy = round(base["transfer_buy"] * (1 + variation), decimals)
-        sell = round(base["sell"] * (1 + variation), decimals)
+        live_val = live_rates.get(key) if live_rates else None
+        if live_val and live_val > 0:
+            transfer_buy = round(live_val, decimals)
+            cash_buy = round(live_val * 0.997, decimals)
+            sell = round(live_val * 1.012, decimals)
+        else:
+            variation = (random.random() - 0.48) * 0.004
+            cash_buy = round(base["cash_buy"] * (1 + variation), decimals)
+            transfer_buy = round(base["transfer_buy"] * (1 + variation), decimals)
+            sell = round(base["sell"] * (1 + variation), decimals)
 
         change_amount = round(sell - base["sell"], decimals)
         change_percent = round((change_amount / base["sell"]) * 100, 2)
@@ -78,11 +117,80 @@ async def get_forex_overview() -> dict[str, Any]:
 
     result = {
         "updated_at": updated_at,
-        "bank": "Ngân hàng Thương mại (Tham khảo)",
+        "bank": "Tỷ Giá Ngoại Tệ Thị Trường (Live Market)",
         "items": items,
     }
     _set_cache(cache_key, result)
     return result
+
+
+async def _fetch_yahoo_forex_history(pair: str, timeframe: str) -> list[dict[str, Any]]:
+    """Lấy dữ liệu biểu đồ lịch sử thực tế từ Yahoo Finance API (tỷ giá trực tiếp & tỷ giá chéo)."""
+    range_map = {
+        "1D": ("1d", "15m"),
+        "1W": ("5d", "1h"),
+        "1M": ("1mo", "1d"),
+        "1Y": ("1y", "1mo"),
+    }
+    range_str, interval = range_map.get(timeframe, ("1mo", "1d"))
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+
+    async def _get_chart(symbol: str) -> dict[int, float]:
+        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?range={range_str}&interval={interval}"
+        try:
+            async with httpx.AsyncClient(timeout=8.0, headers=headers) as client:
+                resp = await client.get(url)
+                if resp.status_code == 200:
+                    res = resp.json().get("chart", {}).get("result", [{}])[0]
+                    timestamps = res.get("timestamp", [])
+                    closes = res.get("indicators", {}).get("quote", [{}])[0].get("close", [])
+                    return {
+                        ts: cl
+                        for ts, cl in zip(timestamps, closes)
+                        if cl is not None and isinstance(cl, (int, float)) and not math.isnan(cl)
+                    }
+        except Exception as e:
+            logger.warning(f"Yahoo chart fetch error for {symbol}: {e}")
+        return {}
+
+    try:
+        usd_vnd = await _get_chart("USDVND=X")
+        if not usd_vnd:
+            return []
+
+        if pair == "USD":
+            target_dict = usd_vnd
+            calc = lambda ts: target_dict.get(ts)
+        elif pair in ["EUR", "GBP", "AUD"]:
+            cross = await _get_chart(f"{pair}USD=X")
+            calc = lambda ts: (cross[ts] * usd_vnd[ts]) if ts in cross else None
+        else:  # JPY, CAD, SGD, CNY
+            cross = await _get_chart(f"USD{pair}=X")
+            calc = lambda ts: (usd_vnd[ts] / cross[ts]) if (ts in cross and cross[ts] > 0) else None
+
+        is_jpy = pair == "JPY"
+        decimals = 2 if is_jpy else 0
+        fmt = "%H:%M" if timeframe == "1D" else ("%m/%Y" if timeframe == "1Y" else "%d/%m")
+
+        history = []
+        for ts in sorted(usd_vnd.keys()):
+            val = calc(ts)
+            if val is not None and val > 0:
+                dt = datetime.fromtimestamp(ts)
+                buy = round(val, decimals)
+                sell = round(val * 1.012, decimals)
+                history.append({
+                    "time": dt.strftime(fmt),
+                    "date": dt.strftime("%Y-%m-%d %H:%M"),
+                    "buy": buy,
+                    "sell": sell,
+                    "middle": round((buy + sell) / 2, decimals),
+                })
+        if history:
+            return history
+    except Exception as e:
+        logger.warning(f"Failed to fetch Yahoo Finance cross history for {pair}: {e}")
+    return []
 
 
 async def get_forex_history(pair: str = "USD", timeframe: str = "1M") -> dict[str, Any]:
@@ -107,6 +215,24 @@ async def get_forex_history(pair: str = "USD", timeframe: str = "1M") -> dict[st
     current_buy = current_item["transfer_buy"] if current_item else base["transfer_buy"]
     current_sell = current_item["sell"] if current_item else base["sell"]
 
+    # Thử lấy dữ liệu biểu đồ thực tế từ Yahoo Finance
+    yahoo_history = await _fetch_yahoo_forex_history(pair_upper, timeframe)
+    if yahoo_history:
+        # Cập nhật điểm cuối cùng trùng khớp 100% với giá live hiện tại
+        yahoo_history[-1]["buy"] = current_buy
+        yahoo_history[-1]["sell"] = current_sell
+        yahoo_history[-1]["middle"] = round((current_buy + current_sell) / 2, decimals)
+
+        result = {
+            "code": pair_upper,
+            "name": base["name"],
+            "symbol": base["symbol"],
+            "timeframe": timeframe,
+            "data": yahoo_history,
+        }
+        _set_cache(cache_key, result)
+        return result
+
     if timeframe == "1D":
         num_points = 24
         delta = timedelta(hours=1)
@@ -126,7 +252,8 @@ async def get_forex_history(pair: str = "USD", timeframe: str = "1M") -> dict[st
 
     history = []
 
-    # Điểm cuối cùng (i=0) phải trùng khớp 100% với tỷ giá hiện tại
+    # Fallback: Điểm cuối cùng (i=0) trùng khớp với tỷ giá hiện tại
+    seed = abs(hash(pair_upper)) % 1000 / 1000.0
     for i in range(num_points, -1, -1):
         point_time = now - (delta * i)
         if i == 0:
@@ -134,7 +261,31 @@ async def get_forex_history(pair: str = "USD", timeframe: str = "1M") -> dict[st
             sell = current_sell
         else:
             t = i / max(1, num_points)
-            trend_offset = math.sin(t * math.pi * 2.0) * 0.012 - (t * 0.015) + math.cos(t * math.pi * 0.9) * 0.006
+            if timeframe == "1D":
+                trend_offset = (
+                    math.sin(t * math.pi * 4.0 + seed) * 0.0015
+                    + math.cos(t * math.pi * 2.0) * 0.001
+                    + (math.sin(t * math.pi * 8.0) * 0.0005)
+                )
+            elif timeframe == "1W":
+                trend_offset = (
+                    math.sin(t * math.pi * 1.8 + seed) * 0.005
+                    + math.cos(t * math.pi * 3.2) * 0.003
+                    - (t * 0.004)
+                )
+            elif timeframe == "1Y":
+                trend_offset = (
+                    math.sin(t * math.pi * 1.2 + seed * 2) * 0.035
+                    - (t * 0.04)
+                    + math.cos(t * math.pi * 2.5) * 0.015
+                )
+            else:  # 1M
+                trend_offset = (
+                    math.sin(t * math.pi * 3.5 + seed) * 0.012
+                    - (t * 0.015)
+                    + math.cos(t * math.pi * 1.2) * 0.006
+                )
+
             buy = round(current_buy * (1.0 + trend_offset), decimals)
             sell = round(current_sell * (1.0 + trend_offset), decimals)
 

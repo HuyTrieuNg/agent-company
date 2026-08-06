@@ -4,6 +4,10 @@ const STOCK_TIMEOUT_MS = 30_000;
 const cache = new Map<string, { promise: Promise<any>; timestamp: number }>();
 const CACHE_TTL = 2 * 60 * 1000; // 2 phút
 
+export function clearStockCache() {
+  cache.clear();
+}
+
 async function stockFetch<T>(path: string): Promise<T> {
   const cached = cache.get(path);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {

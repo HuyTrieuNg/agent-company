@@ -44,10 +44,13 @@ export interface ForexNewsItem {
   url: string;
 }
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
 export async function fetchForexOverview(): Promise<ForexOverviewResponse> {
-  const res = await fetch(`${API_BASE}/api/forex/overview`, { cache: "no-store" });
+  const res = await fetch(`${API_BASE}/api/forex/overview`, {
+    cache: "no-store",
+    headers: { "ngrok-skip-browser-warning": "true" },
+  });
   if (!res.ok) throw new Error("Không thể tải bảng tỷ giá ngoại tệ");
   return res.json();
 }
@@ -58,14 +61,20 @@ export async function fetchForexHistory(
 ): Promise<ForexHistoryResponse> {
   const res = await fetch(
     `${API_BASE}/api/forex/history?pair=${encodeURIComponent(pair)}&timeframe=${encodeURIComponent(timeframe)}`,
-    { cache: "no-store" }
+    {
+      cache: "no-store",
+      headers: { "ngrok-skip-browser-warning": "true" },
+    }
   );
   if (!res.ok) throw new Error("Không thể tải lịch sử tỷ giá");
   return res.json();
 }
 
 export async function fetchForexNews(): Promise<ForexNewsItem[]> {
-  const res = await fetch(`${API_BASE}/api/forex/news`, { cache: "no-store" });
+  const res = await fetch(`${API_BASE}/api/forex/news`, {
+    cache: "no-store",
+    headers: { "ngrok-skip-browser-warning": "true" },
+  });
   if (!res.ok) throw new Error("Không thể tải tin tức tỷ giá ngoại tệ");
   return res.json();
 }

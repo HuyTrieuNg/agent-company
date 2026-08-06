@@ -6,6 +6,7 @@ import {
   getStockFinancials,
   getStockNews,
   searchStocks,
+  clearStockCache,
 } from "./stockApi";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -94,7 +95,7 @@ const MOCK_NEWS = {
 // ─── Test suites ──────────────────────────────────────────────────────────────
 
 describe("stockApi — getStockOverview", () => {
-  beforeEach(() => { vi.stubGlobal("fetch", vi.fn()); });
+  beforeEach(() => { clearStockCache(); vi.stubGlobal("fetch", vi.fn()); });
   afterEach(() => { vi.restoreAllMocks(); });
 
   it("fetches /api/stock/{symbol}/overview and returns typed data", async () => {
@@ -148,7 +149,7 @@ describe("stockApi — getStockOverview", () => {
 
 
 describe("stockApi — getStockTrading", () => {
-  beforeEach(() => { vi.stubGlobal("fetch", vi.fn()); });
+  beforeEach(() => { clearStockCache(); vi.stubGlobal("fetch", vi.fn()); });
   afterEach(() => { vi.restoreAllMocks(); });
 
   it("fetches /api/stock/{symbol}/trading with default params", async () => {
@@ -191,7 +192,7 @@ describe("stockApi — getStockTrading", () => {
 
 
 describe("stockApi — getStockTechnicals", () => {
-  beforeEach(() => { vi.stubGlobal("fetch", vi.fn()); });
+  beforeEach(() => { clearStockCache(); vi.stubGlobal("fetch", vi.fn()); });
   afterEach(() => { vi.restoreAllMocks(); });
 
   it("fetches /api/stock/{symbol}/technicals and returns typed data", async () => {
@@ -238,7 +239,7 @@ describe("stockApi — getStockTechnicals", () => {
 
 
 describe("stockApi — getStockFinancials", () => {
-  beforeEach(() => { vi.stubGlobal("fetch", vi.fn()); });
+  beforeEach(() => { clearStockCache(); vi.stubGlobal("fetch", vi.fn()); });
   afterEach(() => { vi.restoreAllMocks(); });
 
   it("fetches /api/stock/{symbol}/financials with default params", async () => {
@@ -272,7 +273,7 @@ describe("stockApi — getStockFinancials", () => {
 
 
 describe("stockApi — getStockNews", () => {
-  beforeEach(() => { vi.stubGlobal("fetch", vi.fn()); });
+  beforeEach(() => { clearStockCache(); vi.stubGlobal("fetch", vi.fn()); });
   afterEach(() => { vi.restoreAllMocks(); });
 
   it("fetches /api/stock/{symbol}/news and returns news list", async () => {
@@ -315,7 +316,7 @@ describe("stockApi — getStockNews", () => {
 
 
 describe("stockApi — searchStocks", () => {
-  beforeEach(() => { vi.stubGlobal("fetch", vi.fn()); });
+  beforeEach(() => { clearStockCache(); vi.stubGlobal("fetch", vi.fn()); });
   afterEach(() => { vi.restoreAllMocks(); });
 
   it("fetches /api/stock/search with encoded query", async () => {
@@ -358,7 +359,7 @@ describe("stockApi — searchStocks", () => {
 
 
 describe("stockApi — timeout handling", () => {
-  beforeEach(() => { vi.stubGlobal("fetch", vi.fn()); });
+  beforeEach(() => { clearStockCache(); vi.stubGlobal("fetch", vi.fn()); });
   afterEach(() => { vi.restoreAllMocks(); });
 
   it("throws user-friendly error on AbortError (timeout)", async () => {

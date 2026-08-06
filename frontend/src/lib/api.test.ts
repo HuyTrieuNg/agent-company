@@ -37,11 +37,13 @@ describe("sendMessage API helper", () => {
         method: "POST",
         headers: expect.objectContaining({
           "Content-Type": "application/json",
+          "ngrok-skip-browser-warning": "true",
         }),
         body: JSON.stringify({
           message: "Nói tiếp đi",
           history,
           cached_articles: cachedArticles,
+          pinned_articles: [],
         }),
       })
     );
