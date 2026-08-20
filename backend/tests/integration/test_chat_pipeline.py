@@ -1,35 +1,43 @@
+from unittest.mock import AsyncMock, patch
+
 import pytest
 from fastapi.testclient import TestClient
-from unittest.mock import patch, AsyncMock
+
 from backend.main import app
 
 client = TestClient(app)
 
 
 @pytest.mark.asyncio
-@patch("backend.routers.chat.search_articles", new_callable=AsyncMock)
-@patch("backend.routers.chat.generate_gemini_content_with_tools", new_callable=AsyncMock)
+@patch("backend.services.qdrant_service.QdrantService.search_articles", new_callable=AsyncMock)
+@patch(
+    "backend.services.gemini_service.GeminiService.generate_content_with_tools",
+    new_callable=AsyncMock,
+)
 async def test_chat_pipeline_new_query(mock_gemini, mock_search):
     # Mock search_articles return: a list of new articles, did_retrieve=True
     mock_search.return_value = (
-        [{"article_title": "Tựa đề 1", "site": "CafeF", "text": "Chi tiết 1", "article_url": "url1"}],
-        True
+        [
+            {
+                "article_title": "Tựa đề 1",
+                "site": "CafeF",
+                "text": "Chi tiết 1",
+                "article_url": "url1",
+            }
+        ],
+        True,
     )
     # Mock Gemini answer
     mock_gemini.return_value = "Câu trả lời từ Gemini dựa trên tài liệu."
 
-    payload = {
-        "message": "Giá vàng hôm nay thế nào?",
-        "history": [],
-        "cached_articles": []
-    }
+    payload = {"message": "Giá vàng hôm nay thế nào?", "history": [], "cached_articles": []}
 
     # Use client to send request (lifespan is triggered automatically if using client block)
     response = client.post("/api/chat", json=payload)
 
     assert response.status_code == 200
     data = response.json()
-    
+
     assert data["reply"] == "Câu trả lời từ Gemini dựa trên tài liệu."
     # History should contain user query and model reply
     assert len(data["history"]) == 2
@@ -37,7 +45,7 @@ async def test_chat_pipeline_new_query(mock_gemini, mock_search):
     assert data["history"][0]["content"] == "Giá vàng hôm nay thế nào?"
     assert data["history"][1]["role"] == "model"
     assert data["history"][1]["content"] == "Câu trả lời từ Gemini dựa trên tài liệu."
-    
+
     # cached_articles should contain the retrieved articles
     assert len(data["cached_articles"]) == 1
     assert data["cached_articles"][0]["article_title"] == "Tựa đề 1"
@@ -48,11 +56,16 @@ async def test_chat_pipeline_new_query(mock_gemini, mock_search):
 
 
 @pytest.mark.asyncio
-@patch("backend.routers.chat.search_articles", new_callable=AsyncMock)
-@patch("backend.routers.chat.generate_gemini_content_with_tools", new_callable=AsyncMock)
+@patch("backend.services.qdrant_service.QdrantService.search_articles", new_callable=AsyncMock)
+@patch(
+    "backend.services.gemini_service.GeminiService.generate_content_with_tools",
+    new_callable=AsyncMock,
+)
 async def test_chat_pipeline_followup_uses_cache(mock_gemini, mock_search):
     # Mock search_articles return: returns same cached articles, did_retrieve=False
-    cached = [{"article_title": "Tựa đề 1", "site": "CafeF", "text": "Chi tiết 1", "article_url": "url1"}]
+    cached = [
+        {"article_title": "Tựa đề 1", "site": "CafeF", "text": "Chi tiết 1", "article_url": "url1"}
+    ]
     mock_search.return_value = (cached, False)
     mock_gemini.return_value = "Tài liệu 1 nói về vàng."
 
@@ -60,9 +73,9 @@ async def test_chat_pipeline_followup_uses_cache(mock_gemini, mock_search):
         "message": "Nói rõ hơn về tài liệu đó",
         "history": [
             {"role": "user", "content": "Giá vàng hôm nay thế nào?"},
-            {"role": "model", "content": "Câu trả lời từ Gemini dựa trên tài liệu."}
+            {"role": "model", "content": "Câu trả lời từ Gemini dựa trên tài liệu."},
         ],
-        "cached_articles": cached
+        "cached_articles": cached,
     }
 
     response = client.post("/api/chat", json=payload)
@@ -74,13 +87,13 @@ async def test_chat_pipeline_followup_uses_cache(mock_gemini, mock_search):
     # Updated history size should be 4 (old 2 + new 2)
     assert len(data["history"]) == 4
     assert data["history"][-2]["content"] == "Nói rõ hơn về tài liệu đó"
-    
+
     # Check cached_articles returned matches input cache
     assert data["cached_articles"] == cached
 
     # Verify that search_articles was called with the cached articles and conversation context
     mock_search.assert_called_once()
-    args, kwargs = mock_search.call_args
+    _, kwargs = mock_search.call_args
     assert kwargs["cached_articles"] == cached
     assert "Giá vàng hôm nay thế nào?" in kwargs["conversation_context"]
 
@@ -96,10 +109,7 @@ def test_health_endpoint():
 
 def test_chat_validation_missing_message():
     """POST /api/chat with missing 'message' field must return 422."""
-    payload = {
-        "history": [],
-        "cached_articles": []
-    }
+    payload = {"history": [], "cached_articles": []}
     response = client.post("/api/chat", json=payload)
     assert response.status_code == 422
 
@@ -108,15 +118,21 @@ def test_chat_validation_invalid_history_role():
     """History messages with an invalid role should still be accepted at HTTP layer
     since 'role' is just a str in the model, but the response must be 200 or 500
     (not 422), because Pydantic only validates type, not enum value for str."""
-    # ChatMessage.role is plain str — Pydantic will accept any string
-    with patch("backend.routers.chat.search_articles", new_callable=AsyncMock) as mock_search, \
-         patch("backend.routers.chat.generate_gemini_content_with_tools", new_callable=AsyncMock) as mock_gemini:
+    with (
+        patch(
+            "backend.services.qdrant_service.QdrantService.search_articles", new_callable=AsyncMock
+        ) as mock_search,
+        patch(
+            "backend.services.gemini_service.GeminiService.generate_content_with_tools",
+            new_callable=AsyncMock,
+        ) as mock_gemini,
+    ):
         mock_search.return_value = ([], True)
         mock_gemini.return_value = "OK"
         payload = {
             "message": "Test",
             "history": [{"role": "assistant", "content": "Old message"}],
-            "cached_articles": []
+            "cached_articles": [],
         }
         response = client.post("/api/chat", json=payload)
         # Should not crash the server
@@ -124,18 +140,17 @@ def test_chat_validation_invalid_history_role():
 
 
 @pytest.mark.asyncio
-@patch("backend.routers.chat.search_articles", new_callable=AsyncMock)
-@patch("backend.routers.chat.generate_gemini_content_with_tools", new_callable=AsyncMock)
+@patch("backend.services.qdrant_service.QdrantService.search_articles", new_callable=AsyncMock)
+@patch(
+    "backend.services.gemini_service.GeminiService.generate_content_with_tools",
+    new_callable=AsyncMock,
+)
 async def test_chat_pipeline_gemini_error_returns_500(mock_gemini, mock_search):
     """If Gemini raises an exception, the endpoint should return 500 with 'detail'."""
     mock_search.return_value = ([], True)
     mock_gemini.side_effect = Exception("Gemini service unavailable")
 
-    payload = {
-        "message": "Hỏi gì đó",
-        "history": [],
-        "cached_articles": []
-    }
+    payload = {"message": "Hỏi gì đó", "history": [], "cached_articles": []}
     response = client.post("/api/chat", json=payload)
 
     assert response.status_code == 500
@@ -145,13 +160,16 @@ async def test_chat_pipeline_gemini_error_returns_500(mock_gemini, mock_search):
 
 
 @pytest.mark.asyncio
-@patch("backend.routers.chat.search_articles", new_callable=AsyncMock)
-@patch("backend.routers.chat.generate_gemini_content_with_tools", new_callable=AsyncMock)
+@patch("backend.services.qdrant_service.QdrantService.search_articles", new_callable=AsyncMock)
+@patch(
+    "backend.services.gemini_service.GeminiService.generate_content_with_tools",
+    new_callable=AsyncMock,
+)
 async def test_chat_response_schema_compatibility(mock_gemini, mock_search):
     """
     Verify the exact response schema that the frontend expects:
     { reply: str, history: [{role, content}], cached_articles: [...] }
-    
+
     This test acts as a contract test between backend and frontend.
     """
     articles = [
@@ -159,17 +177,15 @@ async def test_chat_response_schema_compatibility(mock_gemini, mock_search):
             "article_title": "Tin tức A",
             "site": "vnexpress",
             "text": "Nội dung A",
-            "article_url": "https://vnexpress.net/a"
+            "article_url": "https://vnexpress.net/a",
         }
     ]
     mock_search.return_value = (articles, True)
     mock_gemini.return_value = "Đây là câu trả lời"
 
-    response = client.post("/api/chat", json={
-        "message": "Test schema",
-        "history": [],
-        "cached_articles": []
-    })
+    response = client.post(
+        "/api/chat", json={"message": "Test schema", "history": [], "cached_articles": []}
+    )
 
     assert response.status_code == 200
     data = response.json()
@@ -194,8 +210,11 @@ async def test_chat_response_schema_compatibility(mock_gemini, mock_search):
 
 
 @pytest.mark.asyncio
-@patch("backend.routers.chat.search_articles", new_callable=AsyncMock)
-@patch("backend.routers.chat.generate_gemini_content_with_tools", new_callable=AsyncMock)
+@patch("backend.services.qdrant_service.QdrantService.search_articles", new_callable=AsyncMock)
+@patch(
+    "backend.services.gemini_service.GeminiService.generate_content_with_tools",
+    new_callable=AsyncMock,
+)
 async def test_chat_pipeline_empty_cache_not_persisted_on_no_retrieve(mock_gemini, mock_search):
     """
     When search returns did_retrieve=True but empty results and there were no prior
@@ -205,11 +224,10 @@ async def test_chat_pipeline_empty_cache_not_persisted_on_no_retrieve(mock_gemin
     mock_search.return_value = ([], True)
     mock_gemini.return_value = "Không tìm thấy thông tin."
 
-    response = client.post("/api/chat", json={
-        "message": "Câu hỏi về chủ đề rất hiếm",
-        "history": [],
-        "cached_articles": []
-    })
+    response = client.post(
+        "/api/chat",
+        json={"message": "Câu hỏi về chủ đề rất hiếm", "history": [], "cached_articles": []},
+    )
 
     assert response.status_code == 200
     data = response.json()
@@ -219,8 +237,11 @@ async def test_chat_pipeline_empty_cache_not_persisted_on_no_retrieve(mock_gemin
 
 
 @pytest.mark.asyncio
-@patch("backend.routers.chat.search_articles", new_callable=AsyncMock)
-@patch("backend.routers.chat.generate_gemini_content_with_tools", new_callable=AsyncMock)
+@patch("backend.services.qdrant_service.QdrantService.search_articles", new_callable=AsyncMock)
+@patch(
+    "backend.services.gemini_service.GeminiService.generate_content_with_tools",
+    new_callable=AsyncMock,
+)
 async def test_chat_history_accumulates_correctly(mock_gemini, mock_search):
     """
     Send two sequential requests simulating a conversation.
@@ -230,22 +251,23 @@ async def test_chat_history_accumulates_correctly(mock_gemini, mock_search):
     mock_gemini.return_value = "Trả lời 1"
 
     # First turn
-    r1 = client.post("/api/chat", json={
-        "message": "Câu hỏi 1",
-        "history": [],
-        "cached_articles": []
-    })
+    r1 = client.post(
+        "/api/chat", json={"message": "Câu hỏi 1", "history": [], "cached_articles": []}
+    )
     assert r1.status_code == 200
     d1 = r1.json()
     assert len(d1["history"]) == 2
 
     # Second turn — pass history from first turn back
     mock_gemini.return_value = "Trả lời 2"
-    r2 = client.post("/api/chat", json={
-        "message": "Câu hỏi 2",
-        "history": d1["history"],
-        "cached_articles": d1["cached_articles"]
-    })
+    r2 = client.post(
+        "/api/chat",
+        json={
+            "message": "Câu hỏi 2",
+            "history": d1["history"],
+            "cached_articles": d1["cached_articles"],
+        },
+    )
     assert r2.status_code == 200
     d2 = r2.json()
     # History should now have 4 entries: 2 from round 1 + 2 from round 2

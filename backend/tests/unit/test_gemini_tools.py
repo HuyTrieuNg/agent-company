@@ -9,15 +9,18 @@ Tests the tool calling state machine:
   6. Tool executor error is surfaced in result
   7. chat endpoint uses generate_gemini_content_with_tools (smoke test)
 """
-import json
-import pytest
-from unittest.mock import patch, AsyncMock, MagicMock, call
-from backend.gemini_service import generate_gemini_content_with_tools
 
+import json
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from backend.gemini_service import generate_gemini_content_with_tools
 
 # ─────────────────────────────────────────────────────────────
 # Helpers to build Gemini-like mock responses
 # ─────────────────────────────────────────────────────────────
+
 
 def _make_fc_part(name: str, args: dict):
     """Create a MagicMock that looks like a Gemini Part with a function_call."""
@@ -65,6 +68,7 @@ def _make_multi_fc_response(calls: list[tuple]) -> MagicMock:
 # Core tool-calling loop tests
 # ─────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 @patch("backend.gemini_service.get_gemini_client")
 async def test_no_tool_calls_returns_text_directly(mock_get_client):
@@ -102,9 +106,7 @@ async def test_single_tool_call_then_text(mock_get_client):
     fc_resp = _make_fc_response("get_stock_overview", {"symbol": "VNM"})
     text_resp = _make_text_response("VNM đang ở 72,000 VND")
 
-    mock_client.aio.models.generate_content = AsyncMock(
-        side_effect=[fc_resp, text_resp]
-    )
+    mock_client.aio.models.generate_content = AsyncMock(side_effect=[fc_resp, text_resp])
 
     tool_result = json.dumps({"symbol": "VNM", "current_price": 72000})
     tool_executor = AsyncMock(return_value=tool_result)
@@ -133,20 +135,22 @@ async def test_multiple_tool_calls_in_one_iteration(mock_get_client):
     mock_client = MagicMock()
     mock_get_client.return_value = mock_client
 
-    multi_fc_resp = _make_multi_fc_response([
-        ("get_stock_overview", {"symbol": "VNM"}),
-        ("get_stock_news", {"symbol": "VNM", "limit": 3}),
-    ])
+    multi_fc_resp = _make_multi_fc_response(
+        [
+            ("get_stock_overview", {"symbol": "VNM"}),
+            ("get_stock_news", {"symbol": "VNM", "limit": 3}),
+        ]
+    )
     text_resp = _make_text_response("Đây là tổng hợp thông tin VNM.")
 
-    mock_client.aio.models.generate_content = AsyncMock(
-        side_effect=[multi_fc_resp, text_resp]
-    )
+    mock_client.aio.models.generate_content = AsyncMock(side_effect=[multi_fc_resp, text_resp])
 
-    tool_executor = AsyncMock(side_effect=[
-        json.dumps({"symbol": "VNM", "current_price": 72000}),
-        json.dumps({"news": [{"title": "Vinamilk Q1 tăng trưởng"}]}),
-    ])
+    tool_executor = AsyncMock(
+        side_effect=[
+            json.dumps({"symbol": "VNM", "current_price": 72000}),
+            json.dumps({"news": [{"title": "Vinamilk Q1 tăng trưởng"}]}),
+        ]
+    )
 
     result = await generate_gemini_content_with_tools(
         api_key="key",
@@ -177,9 +181,7 @@ async def test_chained_tool_calls_two_iterations(mock_get_client):
     fc_resp2 = _make_fc_response("get_stock_technicals", {"symbol": "VNM", "timeframe": "1Y"})
     text_resp = _make_text_response("Phân tích hoàn chỉnh VNM.")
 
-    mock_client.aio.models.generate_content = AsyncMock(
-        side_effect=[fc_resp1, fc_resp2, text_resp]
-    )
+    mock_client.aio.models.generate_content = AsyncMock(side_effect=[fc_resp1, fc_resp2, text_resp])
     tool_executor = AsyncMock(return_value=json.dumps({"ok": True}))
 
     result = await generate_gemini_content_with_tools(
@@ -276,6 +278,7 @@ async def test_all_models_fail_raises_exception(mock_get_client):
 async def test_timeout_raises_timeout_error(mock_get_client):
     """asyncio.TimeoutError is propagated when model is too slow."""
     import asyncio
+
     mock_client = MagicMock()
     mock_get_client.return_value = mock_client
 
@@ -307,13 +310,9 @@ async def test_tool_executor_error_result_sent_to_model(mock_get_client):
     fc_resp = _make_fc_response("get_stock_overview", {"symbol": "INVALID"})
     text_resp = _make_text_response("Không tìm thấy mã chứng khoán INVALID.")
 
-    mock_client.aio.models.generate_content = AsyncMock(
-        side_effect=[fc_resp, text_resp]
-    )
+    mock_client.aio.models.generate_content = AsyncMock(side_effect=[fc_resp, text_resp])
     # Tool executor returns error JSON (not raises — service-level graceful handling)
-    tool_executor = AsyncMock(
-        return_value=json.dumps({"error": "Symbol not found"})
-    )
+    tool_executor = AsyncMock(return_value=json.dumps({"error": "Symbol not found"}))
 
     result = await generate_gemini_content_with_tools(
         api_key="key",
@@ -330,20 +329,25 @@ async def test_tool_executor_error_result_sent_to_model(mock_get_client):
 # Chat endpoint uses generate_gemini_content_with_tools
 # ─────────────────────────────────────────────────────────────
 
+
 @patch("backend.routers.chat.generate_gemini_content_with_tools", new_callable=AsyncMock)
 def test_chat_endpoint_uses_function_calling(mock_tools_fn):
     """POST /api/chat calls generate_gemini_content_with_tools (not old generate_gemini_content)."""
     from fastapi.testclient import TestClient
+
     from backend.main import app
 
     mock_tools_fn.return_value = "VNM đang giao dịch ở 72,000 VND."
     client = TestClient(app)
 
-    res = client.post("/api/chat", json={
-        "message": "Giá VNM hôm nay?",
-        "history": [],
-        "cached_articles": [],
-    })
+    res = client.post(
+        "/api/chat",
+        json={
+            "message": "Giá VNM hôm nay?",
+            "history": [],
+            "cached_articles": [],
+        },
+    )
 
     assert res.status_code == 200
     data = res.json()
@@ -355,16 +359,20 @@ def test_chat_endpoint_uses_function_calling(mock_tools_fn):
 def test_chat_endpoint_tool_declarations_passed(mock_tools_fn):
     """tool_declarations must be passed from chat router to Gemini service."""
     from fastapi.testclient import TestClient
+
     from backend.main import app
 
     mock_tools_fn.return_value = "Xong"
     client = TestClient(app)
 
-    client.post("/api/chat", json={
-        "message": "test",
-        "history": [],
-        "cached_articles": [],
-    })
+    client.post(
+        "/api/chat",
+        json={
+            "message": "test",
+            "history": [],
+            "cached_articles": [],
+        },
+    )
 
     _, kwargs = mock_tools_fn.call_args
     assert "tool_declarations" in kwargs
@@ -381,6 +389,7 @@ def test_chat_endpoint_tool_declarations_passed(mock_tools_fn):
 def test_chat_history_grows_correctly_with_tools_flow(mock_tools_fn):
     """Response history contains exactly user message + model reply appended."""
     from fastapi.testclient import TestClient
+
     from backend.main import app
 
     mock_tools_fn.return_value = "Đây là câu trả lời"
@@ -391,11 +400,14 @@ def test_chat_history_grows_correctly_with_tools_flow(mock_tools_fn):
         {"role": "model", "content": "Chào bạn!"},
     ]
 
-    res = client.post("/api/chat", json={
-        "message": "VNM thế nào?",
-        "history": existing_history,
-        "cached_articles": [],
-    })
+    res = client.post(
+        "/api/chat",
+        json={
+            "message": "VNM thế nào?",
+            "history": existing_history,
+            "cached_articles": [],
+        },
+    )
 
     assert res.status_code == 200
     history = res.json()["history"]

@@ -1,33 +1,31 @@
-"""API Router for managing User Preferences and Chatbot Context."""
+"""API Router for managing User Preferences and Chatbot Context with DI."""
+
+import logging
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..db.database import get_session
 from ..db.models import UserPreferenceModel
-from ..models import UserPreferenceSchema
+from ..repositories.preference_repository import PreferenceRepository
+from ..schemas.chat import UserPreferenceSchema
+from .deps import get_preference_repository
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/preferences", tags=["preferences"])
 
 
 async def get_or_create_user_preference(session: AsyncSession) -> UserPreferenceModel:
-    """Helper to fetch or initialize the single user preference record."""
-    stmt = select(UserPreferenceModel).where(UserPreferenceModel.id == 1)
-    result = await session.execute(stmt)
-    pref = result.scalar_one_or_none()
-    if not pref:
-        pref = UserPreferenceModel(id=1)
-        session.add(pref)
-        await session.commit()
-        await session.refresh(pref)
-    return pref
+    """Compatibility helper function."""
+    repo = PreferenceRepository(session)
+    return await repo.get_or_create_preference()
 
 
 @router.get("", response_model=UserPreferenceSchema)
-async def get_preferences(db: AsyncSession = Depends(get_session)):
+async def get_preferences(
+    pref_repo: PreferenceRepository = Depends(get_preference_repository),
+) -> UserPreferenceSchema:
     """Get current user preferences."""
-    pref = await get_or_create_user_preference(db)
+    pref = await pref_repo.get_or_create_preference()
     return UserPreferenceSchema(
         role_title=pref.role_title or "",
         interested_topics=pref.interested_topics or "",
@@ -40,20 +38,16 @@ async def get_preferences(db: AsyncSession = Depends(get_session)):
 @router.post("", response_model=UserPreferenceSchema)
 async def update_preferences(
     data: UserPreferenceSchema,
-    db: AsyncSession = Depends(get_session),
-):
+    pref_repo: PreferenceRepository = Depends(get_preference_repository),
+) -> UserPreferenceSchema:
     """Update user preferences."""
-    pref = await get_or_create_user_preference(db)
-    pref.role_title = data.role_title
-    pref.interested_topics = data.interested_topics
-    pref.response_style = data.response_style
-    pref.custom_instructions = data.custom_instructions
-    await db.commit()
-    await db.refresh(pref)
-
+    pref = await pref_repo.update_preference(data)
     return UserPreferenceSchema(
         role_title=pref.role_title or "",
         interested_topics=pref.interested_topics or "",
         response_style=pref.response_style or "sut_tich",
         custom_instructions=pref.custom_instructions or "",
     )
+
+
+__all__ = ["router", "get_or_create_user_preference"]

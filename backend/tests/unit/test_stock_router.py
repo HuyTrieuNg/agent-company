@@ -2,9 +2,11 @@
 
 All stock_service calls are mocked so tests are fully offline.
 """
-import pytest
+
+from unittest.mock import AsyncMock, patch
+
 from fastapi.testclient import TestClient
-from unittest.mock import patch, AsyncMock
+
 from backend.main import app
 
 client = TestClient(app)
@@ -31,8 +33,22 @@ MOCK_OVERVIEW = {
 }
 
 MOCK_HISTORY = [
-    {"time": "2024-01-01", "open": 70000, "high": 72000, "low": 69000, "close": 71500, "volume": 1_000_000},
-    {"time": "2024-01-02", "open": 71500, "high": 73000, "low": 71000, "close": 72500, "volume": 1_200_000},
+    {
+        "time": "2024-01-01",
+        "open": 70000,
+        "high": 72000,
+        "low": 69000,
+        "close": 71500,
+        "volume": 1_000_000,
+    },
+    {
+        "time": "2024-01-02",
+        "open": 71500,
+        "high": 73000,
+        "low": 71000,
+        "close": 72500,
+        "volume": 1_200_000,
+    },
 ]
 
 MOCK_TECHNICALS = {
@@ -61,14 +77,25 @@ MOCK_FINANCIALS = [
 ]
 
 MOCK_NEWS = [
-    {"title": "Vinamilk tăng trưởng mạnh Q1 2024", "source": "cafef", "url": "https://cafef.vn/1", "published_date": "2024-01-15"},
-    {"title": "VNM đạt mức lợi nhuận kỷ lục", "source": "vnexpress", "url": "https://vnexpress.net/2", "published_date": "2024-01-10"},
+    {
+        "title": "Vinamilk tăng trưởng mạnh Q1 2024",
+        "source": "cafef",
+        "url": "https://cafef.vn/1",
+        "published_date": "2024-01-15",
+    },
+    {
+        "title": "VNM đạt mức lợi nhuận kỷ lục",
+        "source": "vnexpress",
+        "url": "https://vnexpress.net/2",
+        "published_date": "2024-01-10",
+    },
 ]
 
 
 # ──────────────────────────────────────────────────────────────────────────────
 # GET /api/stock/{symbol}/overview
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 @patch("backend.routers.stock.get_stock_overview", new_callable=AsyncMock)
 def test_stock_overview_200(mock_fn):
@@ -112,6 +139,7 @@ def test_stock_overview_500_on_exception(mock_fn):
 # ──────────────────────────────────────────────────────────────────────────────
 # GET /api/stock/{symbol}/trading
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 @patch("backend.routers.stock.get_stock_trading_history", new_callable=AsyncMock)
 def test_stock_trading_200_returns_data_and_count(mock_fn):
@@ -160,6 +188,7 @@ def test_stock_trading_500_on_exception(mock_fn):
 # GET /api/stock/{symbol}/technicals
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 @patch("backend.routers.stock.get_stock_technicals", new_callable=AsyncMock)
 def test_stock_technicals_200_indicators_present(mock_fn):
     mock_fn.return_value = MOCK_TECHNICALS
@@ -192,6 +221,7 @@ def test_stock_technicals_502_on_service_error_key(mock_fn):
 # ──────────────────────────────────────────────────────────────────────────────
 # GET /api/stock/{symbol}/financials
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 @patch("backend.routers.stock.get_financial_report", new_callable=AsyncMock)
 def test_stock_financials_200_default_params(mock_fn):
@@ -230,6 +260,7 @@ def test_stock_financials_empty_data_returns_200(mock_fn):
 # ──────────────────────────────────────────────────────────────────────────────
 # GET /api/stock/{symbol}/news
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 @patch("backend.routers.stock.get_stock_news", new_callable=AsyncMock)
 def test_stock_news_200_returns_data_and_count(mock_fn):
@@ -271,6 +302,7 @@ def test_stock_news_limit_upper_bound_valid(mock_fn):
 # GET /api/stock/search
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 def test_stock_search_missing_q_returns_422():
     """GET /api/stock/search without 'q' query param returns 422."""
     res = client.get("/api/stock/search")
@@ -281,6 +313,7 @@ def test_stock_search_missing_q_returns_422():
 # Response schema contract tests
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 @patch("backend.routers.stock.get_stock_overview", new_callable=AsyncMock)
 def test_overview_response_has_required_fields(mock_fn):
     """Overview response must include all fields that frontend expects."""
@@ -288,9 +321,16 @@ def test_overview_response_has_required_fields(mock_fn):
     res = client.get("/api/stock/VNM/overview")
     data = res.json()
     required = [
-        "symbol", "company_name", "exchange", "industry",
-        "current_price", "price_change_pct",
-        "pe_ratio", "pb_ratio", "eps", "market_cap",
+        "symbol",
+        "company_name",
+        "exchange",
+        "industry",
+        "current_price",
+        "price_change_pct",
+        "pe_ratio",
+        "pb_ratio",
+        "eps",
+        "market_cap",
     ]
     for field in required:
         assert field in data, f"Missing required field: {field}"
@@ -302,6 +342,15 @@ def test_technicals_response_indicators_structure(mock_fn):
     mock_fn.return_value = MOCK_TECHNICALS
     res = client.get("/api/stock/VNM/technicals")
     indicators = res.json()["indicators"]
-    required_keys = ["sma_20", "sma_50", "sma_200", "rsi_14", "macd", "macd_signal", "bb_upper", "bb_lower"]
+    required_keys = [
+        "sma_20",
+        "sma_50",
+        "sma_200",
+        "rsi_14",
+        "macd",
+        "macd_signal",
+        "bb_upper",
+        "bb_lower",
+    ]
     for key in required_keys:
         assert key in indicators, f"Missing indicator: {key}"

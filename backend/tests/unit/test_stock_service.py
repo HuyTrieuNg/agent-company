@@ -9,12 +9,13 @@ Strategy:
 - Tests verify: data transformation, TTL cache, graceful error handling,
   and pure-Python technical indicator math (SMA/RSI/MACD/Bollinger).
 """
+
 import sys
-import asyncio
 import time
-import pytest
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pandas as pd
-from unittest.mock import patch, MagicMock, AsyncMock
+import pytest
 
 # ── Block real vnstock import (Python 3.14 / bs4 incompatibility) ────────────
 _mock_vnstock_module = MagicMock()
@@ -35,19 +36,16 @@ sys.modules["bs4"] = MagicMock()
 
 import backend.services.stock_service as ss
 
-
-
 # ──────────────────────────────────────────────────────────────────────────────
 # Helpers
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 def _make_price_df(n: int = 60):
     """Return a minimal OHLCV DataFrame for n periods."""
     import datetime
-    dates = [
-        (datetime.date(2024, 1, 1) + datetime.timedelta(days=i)).isoformat()
-        for i in range(n)
-    ]
+
+    dates = [(datetime.date(2024, 1, 1) + datetime.timedelta(days=i)).isoformat() for i in range(n)]
     closes = [float(50_000 + i * 100) for i in range(n)]
     return pd.DataFrame(
         {
@@ -96,6 +94,7 @@ def _make_price_board_df():
 # Cache helpers
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 def test_cache_set_and_get_returns_value():
     """_set_cache / _get_cache round-trip works correctly."""
     ss._cache.clear()
@@ -129,6 +128,7 @@ def test_cache_not_expired_before_ttl():
 # ──────────────────────────────────────────────────────────────────────────────
 # get_stock_overview
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 @patch("backend.services.stock_service.asyncio.to_thread", new_callable=AsyncMock)
@@ -177,7 +177,7 @@ async def test_get_stock_overview_uses_cache_on_second_call(mock_to_thread):
     mock_to_thread.side_effect = [company_df, price_df]
 
     await ss.get_stock_overview("VNM")
-    first_call_count = mock_to_thread.call_count  # should be 2 (company + price)
+    assert mock_to_thread.call_count == 2  # should be 2 (company + price)
 
     # Second call should hit cache — to_thread count must NOT increase
     result = await ss.get_stock_overview("VNM")
@@ -199,6 +199,7 @@ async def test_get_stock_overview_symbol_normalized_to_uppercase(mock_to_thread)
 # ──────────────────────────────────────────────────────────────────────────────
 # get_stock_trading_history
 # ──────────────────────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 @patch("backend.services.stock_service.asyncio.to_thread", new_callable=AsyncMock)
@@ -243,15 +244,28 @@ async def test_get_stock_trading_history_error_returns_empty_list(mock_to_thread
 # get_financial_report
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 @patch("backend.services.stock_service.asyncio.to_thread", new_callable=AsyncMock)
 async def test_get_financial_report_income_statement_returns_records(mock_to_thread):
     """income_statement returns list of dicts with column names as keys."""
     ss._cache.clear()
-    df = pd.DataFrame([
-        {"yearReport": 2024, "lengthReport": 1, "revenue": 14_000_000_000, "net_income": 2_000_000_000},
-        {"yearReport": 2023, "lengthReport": 4, "revenue": 13_500_000_000, "net_income": 1_900_000_000},
-    ])
+    df = pd.DataFrame(
+        [
+            {
+                "yearReport": 2024,
+                "lengthReport": 1,
+                "revenue": 14_000_000_000,
+                "net_income": 2_000_000_000,
+            },
+            {
+                "yearReport": 2023,
+                "lengthReport": 4,
+                "revenue": 13_500_000_000,
+                "net_income": 1_900_000_000,
+            },
+        ]
+    )
     mock_to_thread.return_value = df
 
     result = await ss.get_financial_report("VNM", "income_statement", "quarter")
@@ -277,15 +291,18 @@ async def test_get_financial_report_error_returns_empty_list(mock_to_thread):
 # get_stock_news
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 @patch("backend.services.stock_service.asyncio.to_thread", new_callable=AsyncMock)
 async def test_get_stock_news_returns_limited_list(mock_to_thread):
     """Returns at most `limit` news items."""
     ss._cache.clear()
-    df = pd.DataFrame([
-        {"title": f"Tin {i}", "url": f"https://example.com/{i}", "published_date": "2024-01-01"}
-        for i in range(20)
-    ])
+    df = pd.DataFrame(
+        [
+            {"title": f"Tin {i}", "url": f"https://example.com/{i}", "published_date": "2024-01-01"}
+            for i in range(20)
+        ]
+    )
     mock_to_thread.return_value = df
 
     result = await ss.get_stock_news("VNM", limit=5)
@@ -316,6 +333,7 @@ async def test_get_stock_news_error_returns_empty_list(mock_to_thread):
 # get_stock_technicals — pure calculation logic
 # ──────────────────────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 @patch("backend.services.stock_service.get_stock_trading_history", new_callable=AsyncMock)
 async def test_get_stock_technicals_correct_sma20(mock_history):
@@ -324,7 +342,7 @@ async def test_get_stock_technicals_correct_sma20(mock_history):
     # 60 closes: 1000, 1001, ..., 1059
     closes = list(range(1000, 1060))
     mock_history.return_value = [
-        {"time": f"2024-01-{i+1:02d}", "close": c, "volume": 1_000_000}
+        {"time": f"2024-01-{i + 1:02d}", "close": c, "volume": 1_000_000}
         for i, c in enumerate(closes)
     ]
 
@@ -341,7 +359,7 @@ async def test_get_stock_technicals_rsi_overbought(mock_history):
     ss._cache.clear()
     closes = [float(1000 + i * 50) for i in range(30)]
     mock_history.return_value = [
-        {"time": f"2024-01-{i+1:02d}", "close": c, "volume": 1_000_000}
+        {"time": f"2024-01-{i + 1:02d}", "close": c, "volume": 1_000_000}
         for i, c in enumerate(closes)
     ]
 
@@ -358,7 +376,7 @@ async def test_get_stock_technicals_rsi_oversold(mock_history):
     ss._cache.clear()
     closes = [float(2000 - i * 50) for i in range(30)]
     mock_history.return_value = [
-        {"time": f"2024-01-{i+1:02d}", "close": c, "volume": 1_000_000}
+        {"time": f"2024-01-{i + 1:02d}", "close": c, "volume": 1_000_000}
         for i, c in enumerate(closes)
     ]
 
@@ -375,8 +393,7 @@ async def test_get_stock_technicals_bollinger_bands_upper_above_lower(mock_histo
     ss._cache.clear()
     closes = [float(50_000 + (i % 10) * 200) for i in range(60)]
     mock_history.return_value = [
-        {"time": f"2024-01-{i+1:02d}", "close": c}
-        for i, c in enumerate(closes)
+        {"time": f"2024-01-{i + 1:02d}", "close": c} for i, c in enumerate(closes)
     ]
 
     result = await ss.get_stock_technicals("VNM", "1Y")
@@ -394,8 +411,7 @@ async def test_get_stock_technicals_insufficient_data_returns_none_sma200(mock_h
     ss._cache.clear()
     closes = [float(50_000 + i * 100) for i in range(30)]  # only 30 points
     mock_history.return_value = [
-        {"time": f"2024-01-{i+1:02d}", "close": c}
-        for i, c in enumerate(closes)
+        {"time": f"2024-01-{i + 1:02d}", "close": c} for i, c in enumerate(closes)
     ]
 
     result = await ss.get_stock_technicals("VNM", "1Y")
@@ -421,8 +437,7 @@ async def test_get_stock_technicals_price_history_returns_last_60(mock_history):
     n = 100
     closes = [float(50_000 + i * 100) for i in range(n)]
     mock_history.return_value = [
-        {"time": f"2024-01-{i+1:02d}", "close": c}
-        for i, c in enumerate(closes)
+        {"time": f"2024-01-{i + 1:02d}", "close": c} for i, c in enumerate(closes)
     ]
 
     result = await ss.get_stock_technicals("VNM", "1Y")

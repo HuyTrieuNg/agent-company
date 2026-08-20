@@ -1,15 +1,18 @@
-from backend.routers.chat import _build_conversation_context
 from backend.models import ChatMessage
+from backend.routers.chat import _build_conversation_context
+
 
 def test_build_conversation_context_empty():
     assert _build_conversation_context([]) == ""
 
+
 def test_build_conversation_context_no_user_msg():
     history = [
         ChatMessage(role="model", content="Hello, how can I help?"),
-        ChatMessage(role="model", content="I am here.")
+        ChatMessage(role="model", content="I am here."),
     ]
     assert _build_conversation_context(history) == ""
+
 
 def test_build_conversation_context_with_user_msg():
     history = [
@@ -18,18 +21,14 @@ def test_build_conversation_context_with_user_msg():
         ChatMessage(role="user", content="Tell me about Python"),
         ChatMessage(role="model", content="Python is a language."),
         ChatMessage(role="user", content="Is it fast?"),
-        ChatMessage(role="model", content="Yes, with some tools.")
+        ChatMessage(role="model", content="Yes, with some tools."),
     ]
-    
+
     # Default max_turns is 3, which means up to 3 user messages (6 turns total)
     context = _build_conversation_context(history, max_turns=3)
-    expected = (
-        "Các câu hỏi trước của người dùng:\n"
-        "- Hello\n"
-        "- Tell me about Python\n"
-        "- Is it fast?"
-    )
+    expected = "Các câu hỏi trước của người dùng:\n- Hello\n- Tell me about Python\n- Is it fast?"
     assert context == expected
+
 
 def test_build_conversation_context_max_turns_limit():
     history = [
@@ -42,15 +41,12 @@ def test_build_conversation_context_max_turns_limit():
         ChatMessage(role="user", content="Message 4"),
         ChatMessage(role="model", content="Response 4"),
     ]
-    
+
     # max_turns=2 should only return the last 2 user messages (Message 3 and Message 4)
     context = _build_conversation_context(history, max_turns=2)
-    expected = (
-        "Các câu hỏi trước của người dùng:\n"
-        "- Message 3\n"
-        "- Message 4"
-    )
+    expected = "Các câu hỏi trước của người dùng:\n- Message 3\n- Message 4"
     assert context == expected
+
 
 def test_build_conversation_context_single_user_msg():
     """Single user turn — should produce context with exactly 1 bullet."""

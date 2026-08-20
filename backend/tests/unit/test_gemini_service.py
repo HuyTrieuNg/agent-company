@@ -1,8 +1,11 @@
-import pytest
 import asyncio
-from unittest.mock import patch, AsyncMock, MagicMock
-from backend.gemini_service import generate_gemini_content, _build_contents
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+from backend.gemini_service import _build_contents, generate_gemini_content
 from backend.models import ChatMessage
+
 
 @pytest.mark.asyncio
 @patch("backend.gemini_service.get_gemini_client")
@@ -10,36 +13,33 @@ async def test_generate_gemini_content_fallback_success(mock_get_client):
     # Setup mock client
     mock_client = MagicMock()
     mock_get_client.return_value = mock_client
-    
+
     # Use AsyncMock for the generate_content method to make it awaitable
     mock_generate = AsyncMock()
     mock_client.aio.models.generate_content = mock_generate
-    
+
     # Simulate first model failing with 429, second model succeeding
     mock_response = MagicMock()
     mock_response.text = "Hello from fallback model!"
-    
-    mock_generate.side_effect = [
-        Exception("429 RESOURCE_EXHAUSTED"),
-        mock_response
-    ]
-    
+
+    mock_generate.side_effect = [Exception("429 RESOURCE_EXHAUSTED"), mock_response]
+
     models = ["gemini-3.1-pro-preview", "gemini-2.5-flash"]
-    
+
     result = await generate_gemini_content(
         api_key="mock-key",
         model=models,
         contents="Hi",
     )
-    
+
     assert result == "Hello from fallback model!"
     # Verify both models were queried in order
     assert mock_generate.call_count == 2
-    
+
     # 1st call args
     args1, kwargs1 = mock_generate.call_args_list[0]
     assert kwargs1["model"] == "gemini-3.1-pro-preview"
-    
+
     # 2nd call args
     args2, kwargs2 = mock_generate.call_args_list[1]
     assert kwargs2["model"] == "gemini-2.5-flash"
@@ -50,26 +50,27 @@ async def test_generate_gemini_content_fallback_success(mock_get_client):
 async def test_generate_gemini_content_all_fail(mock_get_client):
     mock_client = MagicMock()
     mock_get_client.return_value = mock_client
-    
+
     mock_generate = AsyncMock()
     mock_client.aio.models.generate_content = mock_generate
-    
+
     # All models fail
     mock_generate.side_effect = [
         Exception("429 First model limit"),
-        Exception("500 Second model error")
+        Exception("500 Second model error"),
     ]
-    
+
     models = ["model-1", "model-2"]
-    
+
     with pytest.raises(Exception, match="500 Second model error"):
         await generate_gemini_content(
             api_key="mock-key",
             model=models,
             contents="Hi",
         )
-        
+
     assert mock_generate.call_count == 2
+
 
 @pytest.mark.asyncio
 @patch("backend.gemini_service.get_gemini_client")
@@ -191,6 +192,7 @@ async def test_generate_gemini_content_timeout_raises(mock_get_client):
 # Unit tests for _build_contents helper
 # ──────────────────────────────────────────────────────────
 
+
 def test_build_contents_no_history():
     """No history → single Content with role=user."""
     result = _build_contents(history=None, message="Hello")
@@ -219,4 +221,4 @@ def test_build_contents_role_mapping():
         ChatMessage(role="system", content="System message"),
     ]
     result = _build_contents(history=history, message="Hi")
-    assert result[0].role == "user"   # 'system' → 'user'
+    assert result[0].role == "user"  # 'system' → 'user'

@@ -4,8 +4,10 @@ Unit tests cho hai tính năng mới trong qdrant_service:
   2. _relaxed_fallback_search        — tìm kiếm với filter nới lỏng dần khi không có kết quả
   3. search_articles tích hợp cả hai
 """
+
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
-from unittest.mock import patch, AsyncMock, MagicMock, call
 
 from backend.qdrant_service import (
     _enrich_with_full_article_chunks,
@@ -13,10 +15,10 @@ from backend.qdrant_service import (
     search_articles,
 )
 
-
-# ---------------------------------------------------------------------------
+# ---------------------reportTypedDictNotRequiredAccess------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _make_point(payload: dict) -> MagicMock:
     """Tạo mock Qdrant point với payload cho sẵn."""
@@ -41,8 +43,8 @@ def _make_scroll_result(payloads: list[dict]):
 # Tests: _enrich_with_full_article_chunks
 # ===========================================================================
 
-class TestEnrichWithFullArticleChunks:
 
+class TestEnrichWithFullArticleChunks:
     @pytest.mark.asyncio
     async def test_returns_input_when_qdrant_client_is_none(self):
         """Khi qdrant_client=None, hàm trả lại top_chunks nguyên vẹn."""
@@ -187,7 +189,7 @@ class TestEnrichWithFullArticleChunks:
         """Chunk không có url_hash được giữ ở cuối kết quả."""
         top_chunks = [
             {"url_hash": "hash_a", "chunk_index": 0, "text": "bài A"},
-            {"url_hash": "",        "chunk_index": 0, "text": "không có hash"},
+            {"url_hash": "", "chunk_index": 0, "text": "không có hash"},
         ]
 
         chunks_a = [{"url_hash": "hash_a", "chunk_index": 0, "text": "bài A"}]
@@ -205,8 +207,8 @@ class TestEnrichWithFullArticleChunks:
 # Tests: _relaxed_fallback_search
 # ===========================================================================
 
-class TestRelaxedFallbackSearch:
 
+class TestRelaxedFallbackSearch:
     @pytest.mark.asyncio
     async def test_returns_empty_when_qdrant_client_is_none(self):
         """Không có Qdrant client → trả về list rỗng."""
@@ -257,7 +259,7 @@ class TestRelaxedFallbackSearch:
         mock_payload = {"url_hash": "h2", "chunk_index": 0, "text": "gợi ý"}
         mock_qdrant = MagicMock()
         mock_qdrant.query_points.side_effect = [
-            _make_qdrant_response([]),       # strategy 1: rỗng
+            _make_qdrant_response([]),  # strategy 1: rỗng
             _make_qdrant_response([mock_payload]),  # strategy 2: có kết quả
         ]
         mock_enrich.return_value = [mock_payload]
@@ -286,8 +288,8 @@ class TestRelaxedFallbackSearch:
         mock_payload = {"url_hash": "h3", "chunk_index": 0, "text": "semantic"}
         mock_qdrant = MagicMock()
         mock_qdrant.query_points.side_effect = [
-            _make_qdrant_response([]),   # strategy 1
-            _make_qdrant_response([]),   # strategy 2
+            _make_qdrant_response([]),  # strategy 1
+            _make_qdrant_response([]),  # strategy 2
             _make_qdrant_response([mock_payload]),  # strategy 3
         ]
         mock_enrich.return_value = [mock_payload]
@@ -404,8 +406,8 @@ class TestRelaxedFallbackSearch:
 # Tests: search_articles — tích hợp fallback + enrich
 # ===========================================================================
 
-class TestSearchArticlesIntegration:
 
+class TestSearchArticlesIntegration:
     @pytest.mark.asyncio
     @patch("backend.qdrant_service.extract_structured_query", new_callable=AsyncMock)
     @patch("backend.qdrant_service.get_dense_embedder")
@@ -555,8 +557,12 @@ class TestSearchArticlesIntegration:
         chunk = {"url_hash": "hA", "chunk_index": 0, "text": "kinh tế VN"}
         mock_qdrant.query_points.return_value = _make_qdrant_response([chunk])
 
-        with patch("backend.qdrant_service.rerank_documents", new_callable=AsyncMock) as mock_rerank, \
-             patch("backend.qdrant_service._enrich_with_full_article_chunks", new_callable=AsyncMock) as mock_enrich:
+        with (
+            patch("backend.qdrant_service.rerank_documents", new_callable=AsyncMock) as mock_rerank,
+            patch(
+                "backend.qdrant_service._enrich_with_full_article_chunks", new_callable=AsyncMock
+            ) as mock_enrich,
+        ):
             mock_rerank.return_value = [chunk]
             mock_enrich.return_value = [chunk]
 
@@ -569,6 +575,7 @@ class TestSearchArticlesIntegration:
 # Tests: chat endpoint — xử lý _is_fallback flag
 # ===========================================================================
 
+
 class TestChatEndpointFallbackHandling:
     """
     Kiểm tra rằng chat endpoint phân biệt đúng kết quả fallback vs kết quả thường
@@ -577,16 +584,19 @@ class TestChatEndpointFallbackHandling:
 
     def setup_method(self):
         from fastapi.testclient import TestClient
+
         from backend.main import app
-        from backend.config import settings
-        settings.gemini_api_key = "fake_key"
+
         self.client = TestClient(app)
 
-    @patch("backend.routers.chat.search_articles", new_callable=AsyncMock)
-    @patch("backend.routers.chat.generate_gemini_content_with_tools", new_callable=AsyncMock)
+    @patch("backend.services.qdrant_service.QdrantService.search_articles", new_callable=AsyncMock)
+    @patch(
+        "backend.services.gemini_service.GeminiService.generate_content_with_tools",
+        new_callable=AsyncMock,
+    )
     def test_fallback_results_produce_suggestion_reply(self, mock_gemini, mock_search):
         """
-        Khi search_articles trả về chunks có _is_fallback=True,
+        Khi search_articles trả về chunks có is_fallback=True,
         Gemini phải nhận system_instruction chứa 'KHÔNG tìm được kết quả chính xác'
         (chế độ gợi ý, không phải trả lời trực tiếp).
         """
@@ -602,11 +612,14 @@ class TestChatEndpointFallbackHandling:
         mock_search.return_value = (fallback_chunks, True)
         mock_gemini.return_value = "Không tìm thấy chính xác, đây là gợi ý..."
 
-        response = self.client.post("/api/chat", json={
-            "message": "Giá vàng ngày 1/1/2020?",
-            "history": [],
-            "cached_articles": [],
-        })
+        response = self.client.post(
+            "/api/chat",
+            json={
+                "message": "Giá vàng ngày 1/1/2020?",
+                "history": [],
+                "cached_articles": [],
+            },
+        )
 
         assert response.status_code == 200
 
@@ -617,8 +630,11 @@ class TestChatEndpointFallbackHandling:
         assert "GỢI Ý" in system_instr
         assert "TUYỆT ĐỐI KHÔNG tự suy diễn" in system_instr
 
-    @patch("backend.routers.chat.search_articles", new_callable=AsyncMock)
-    @patch("backend.routers.chat.generate_gemini_content_with_tools", new_callable=AsyncMock)
+    @patch("backend.services.qdrant_service.QdrantService.search_articles", new_callable=AsyncMock)
+    @patch(
+        "backend.services.gemini_service.GeminiService.generate_content_with_tools",
+        new_callable=AsyncMock,
+    )
     def test_normal_results_produce_standard_context_prompt(self, mock_gemini, mock_search):
         """
         Khi chunks không có _is_fallback, system_instruction là chế độ RAG bình thường.
@@ -634,11 +650,14 @@ class TestChatEndpointFallbackHandling:
         mock_search.return_value = (normal_chunks, False)
         mock_gemini.return_value = "Giá vàng hôm nay tăng 5%."
 
-        response = self.client.post("/api/chat", json={
-            "message": "Giá vàng hôm nay?",
-            "history": [],
-            "cached_articles": [],
-        })
+        response = self.client.post(
+            "/api/chat",
+            json={
+                "message": "Giá vàng hôm nay?",
+                "history": [],
+                "cached_articles": [],
+            },
+        )
 
         assert response.status_code == 200
 
@@ -648,8 +667,11 @@ class TestChatEndpointFallbackHandling:
         # Không phải chế độ fallback
         assert "KHÔNG tìm được kết quả chính xác" not in system_instr
 
-    @patch("backend.routers.chat.search_articles", new_callable=AsyncMock)
-    @patch("backend.routers.chat.generate_gemini_content_with_tools", new_callable=AsyncMock)
+    @patch("backend.services.qdrant_service.QdrantService.search_articles", new_callable=AsyncMock)
+    @patch(
+        "backend.services.gemini_service.GeminiService.generate_content_with_tools",
+        new_callable=AsyncMock,
+    )
     def test_fallback_articles_are_cached_for_next_turn(self, mock_gemini, mock_search):
         """
         Chunks fallback phải được trả về trong cached_articles để lượt sau
@@ -667,11 +689,14 @@ class TestChatEndpointFallbackHandling:
         mock_search.return_value = (fallback_chunks, True)
         mock_gemini.return_value = "Đây là gợi ý cho bạn."
 
-        response = self.client.post("/api/chat", json={
-            "message": "Câu hỏi hiếm",
-            "history": [],
-            "cached_articles": [],
-        })
+        response = self.client.post(
+            "/api/chat",
+            json={
+                "message": "Câu hỏi hiếm",
+                "history": [],
+                "cached_articles": [],
+            },
+        )
 
         assert response.status_code == 200
         data = response.json()

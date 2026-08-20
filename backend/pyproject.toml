@@ -3,7 +3,7 @@ name = "backend"
 version = "0.1.0"
 description = "Chatbot backend powered by Google Gemini"
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.137.2",
     "google-genai>=2.9.0",
@@ -28,4 +28,23 @@ package = true
 dev = [
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
+    "ruff>=0.9.0",
+    "pyright>=1.1.390",
 ]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+ignore = ["E501", "B008", "E402"]
+
+[tool.pyright]
+include = ["src"]
+pythonVersion = "3.12"
+typeCheckingMode = "strict"
+reportMissingTypeStubs = false       # vnstock has no type stubs
+reportUnusedFunction = false         # FastAPI routes & helper functions
+reportPrivateUsage = false           # backward-compat re-exports layer
+

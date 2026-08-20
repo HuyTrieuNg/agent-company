@@ -1,29 +1,34 @@
-import pytest
 import json
-from unittest.mock import patch, AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
 from backend.qdrant_service import (
-    extract_structured_query,
-    search_articles,
-    _slugify,
-    _remove_accents,
-    _tag_variants,
     _doc_tag_score,
     _heuristic_rerank,
     _normalise_slug,
+    _remove_accents,
+    _slugify,
+    _tag_variants,
+    extract_structured_query,
+    search_articles,
 )
+
 
 @pytest.mark.asyncio
 @patch("backend.qdrant_service.generate_gemini_content", new_callable=AsyncMock)
 async def test_extract_structured_query_gemini_success(mock_generate_gemini):
     # Setup mock return value for Gemini content generation
-    mock_response = json.dumps({
-        "site": "cafef",
-        "tags": ["kinh tế", "tài chính"],
-        "date_from": "2026-07-15",
-        "date_to": "2026-07-16",
-        "semantic_query": "biến động giá vàng",
-        "needs_retrieval": True
-    })
+    mock_response = json.dumps(
+        {
+            "site": "cafef",
+            "tags": ["kinh tế", "tài chính"],
+            "date_from": "2026-07-15",
+            "date_to": "2026-07-16",
+            "semantic_query": "biến động giá vàng",
+            "needs_retrieval": True,
+        }
+    )
     mock_generate_gemini.return_value = f"```json\n{mock_response}\n```"
 
     result = await extract_structured_query("Tin tức giá vàng CafeF 2 ngày nay")
@@ -38,10 +43,12 @@ async def test_extract_structured_query_gemini_success(mock_generate_gemini):
 @pytest.mark.asyncio
 @patch("backend.qdrant_service.generate_gemini_content", new_callable=AsyncMock)
 @patch("backend.qdrant_service.generate_ollama_content", new_callable=AsyncMock)
-async def test_extract_structured_query_fallback_to_ollama(mock_generate_ollama, mock_generate_gemini):
+async def test_extract_structured_query_fallback_to_ollama(
+    mock_generate_ollama, mock_generate_gemini
+):
     # Gemini fails with 429
     mock_generate_gemini.side_effect = Exception("429 RESOURCE_EXHAUSTED")
-    
+
     # Ollama returns valid JSON
     mock_response = {
         "site": "",
@@ -49,7 +56,7 @@ async def test_extract_structured_query_fallback_to_ollama(mock_generate_ollama,
         "date_from": "",
         "date_to": "",
         "semantic_query": "Bitcoin",
-        "needs_retrieval": False
+        "needs_retrieval": False,
     }
     mock_generate_ollama.return_value = json.dumps(mock_response)
 
@@ -80,23 +87,25 @@ async def test_extract_structured_query_all_fail(mock_generate_ollama, mock_gene
 @patch("backend.qdrant_service.extract_structured_query", new_callable=AsyncMock)
 async def test_search_articles_uses_cache(mock_extract_query):
     # Scenario: needs_retrieval=False and cached_articles provided
-    mock_extract_query.return_value = {
-        "semantic_query": "giá vàng",
-        "needs_retrieval": False
-    }
-    
-    cached = [{"title": "Bài báo 1", "text": "Nội dung 1"}, {"title": "Bài báo 2", "text": "Nội dung 2"}]
-    
+    mock_extract_query.return_value = {"semantic_query": "giá vàng", "needs_retrieval": False}
+
+    cached = [
+        {"title": "Bài báo 1", "text": "Nội dung 1"},
+        {"title": "Bài báo 2", "text": "Nội dung 2"},
+    ]
+
     results, did_retrieve = await search_articles(
         query="tóm tắt bài báo lúc nãy",
         limit=5,
         cached_articles=cached,
-        conversation_context="context"
+        conversation_context="context",
     )
-    
+
     assert did_retrieve is False
     assert results == cached
-    mock_extract_query.assert_called_once_with("tóm tắt bài báo lúc nãy", conversation_context="context")
+    mock_extract_query.assert_called_once_with(
+        "tóm tắt bài báo lúc nãy", conversation_context="context"
+    )
 
 
 @pytest.mark.asyncio
@@ -113,41 +122,54 @@ async def test_search_articles_performs_qdrant_query(
         "semantic_query": "chứng khoán",
         "needs_retrieval": True,
         "site": "cafef",
-        "tags": ["tài chính"]
+        "tags": ["tài chính"],
     }
-    
+
     # Mock encoder to return an object with a tolist() method returning a list
     mock_vector = MagicMock()
     mock_vector.tolist.return_value = [0.1, 0.2, 0.3]
     mock_embedder.encode.return_value = mock_vector
-    
+
     # Mock Qdrant client query points (2 points to trigger reranking since len(candidates) must be > 1)
     mock_point1 = MagicMock()
-    mock_point1.payload = {"article_title": "Tin chứng khoán mới 1", "text": "Nội dung 1", "site": "cafef"}
+    mock_point1.payload = {
+        "article_title": "Tin chứng khoán mới 1",
+        "text": "Nội dung 1",
+        "site": "cafef",
+    }
     mock_point2 = MagicMock()
-    mock_point2.payload = {"article_title": "Tin chứng khoán mới 2", "text": "Nội dung 2", "site": "cafef"}
-    
+    mock_point2.payload = {
+        "article_title": "Tin chứng khoán mới 2",
+        "text": "Nội dung 2",
+        "site": "cafef",
+    }
+
     mock_response = MagicMock()
     mock_response.points = [mock_point1, mock_point2]
     mock_qdrant.query_points.return_value = mock_response
-    
+
     # Mock Rerank
-    mock_rerank.return_value = [{"article_title": "Tin chứng khoán mới 1", "text": "Nội dung 1", "site": "cafef"}]
+    mock_rerank.return_value = [
+        {"article_title": "Tin chứng khoán mới 1", "text": "Nội dung 1", "site": "cafef"}
+    ]
 
     results, did_retrieve = await search_articles(
         query="Tin chứng khoán CafeF",
         limit=5,
-        cached_articles=[{"old": "article"}],  # even if cache is provided, needs_retrieval=True forces search
-        conversation_context=""
+        cached_articles=[
+            {"old": "article"}
+        ],  # even if cache is provided, needs_retrieval=True forces search
+        conversation_context="",
     )
 
     assert did_retrieve is True
     assert len(results) == 1
     assert results[0]["article_title"] == "Tin chứng khoán mới 1"
-    
+
     mock_embedder.encode.assert_called_once_with("query: chứng khoán")
     mock_qdrant.query_points.assert_called_once()
     mock_rerank.assert_called_once()
+
 
 def test_remove_accents():
     assert _remove_accents("kinh tế") == "kinh te"
@@ -218,7 +240,7 @@ def test_doc_tag_score_title_match():
     """Tag in title but not in doc.tags should give title_match bonus."""
     doc = {"tags": [], "article_title": "Tổng hợp tin tức kinh tế"}
     score = _doc_tag_score(doc, ["kinh tế"])
-    assert score > 0.0   # title_match = +0.3
+    assert score > 0.0  # title_match = +0.3
 
 
 def test_doc_tag_score_empty_query_tags():
@@ -301,10 +323,7 @@ async def test_search_articles_no_cache_forces_retrieval(mock_extract_query):
     # Patch embedder and qdrant_client to None so the function falls through gracefully
     with patch("backend.qdrant_service.qdrant_client", None):
         results, did_retrieve = await search_articles(
-            query="bitcoin",
-            limit=5,
-            cached_articles=None,
-            conversation_context=""
+            query="bitcoin", limit=5, cached_articles=None, conversation_context=""
         )
     # Without a real Qdrant, results will be empty
     assert isinstance(results, list)
@@ -324,10 +343,7 @@ async def test_search_articles_no_embedder_returns_empty(mock_get_embedder, mock
     }
 
     results, did_retrieve = await search_articles(
-        query="test",
-        limit=5,
-        cached_articles=None,
-        conversation_context=""
+        query="test", limit=5, cached_articles=None, conversation_context=""
     )
 
     assert results == [] or isinstance(results, list)

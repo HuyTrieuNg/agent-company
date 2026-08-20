@@ -1,4 +1,3 @@
-import pytest
 from backend.sources_registry import sources_registry
 
 
