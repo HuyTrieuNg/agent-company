@@ -12,25 +12,27 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..",
 
 import backend.core.container  # noqa: F401
 import backend.db.database  # noqa: F401
-import backend.qdrant_service  # noqa: F401
-import backend.reranker_service  # noqa: F401
+import backend.services.qdrant_service  # noqa: F401
+import backend.services.reranker_service  # noqa: F401
 
 # Globally mock startup functions to prevent loading real DB, embedding weights or calling external services
 init_db_mock = patch("backend.db.database.init_db", new_callable=AsyncMock)
-ensure_indexes_mock = patch("backend.qdrant_service.ensure_payload_indexes", new_callable=AsyncMock)
-warmup_reranker_mock = patch("backend.reranker_service.warmup_reranker", new_callable=AsyncMock)
+ensure_indexes_mock = patch(
+    "backend.services.qdrant_service.ensure_payload_indexes", new_callable=AsyncMock
+)
+warmup_reranker_mock = patch(
+    "backend.services.reranker_service.warmup_reranker", new_callable=AsyncMock
+)
 container_warmup_mock = patch(
     "backend.core.container.AppContainer._background_warmup", new_callable=AsyncMock
 )
 sparse_vector_mock = patch("backend.services.qdrant_service.get_sparse_vector", return_value=None)
-sparse_vector_mock_pkg = patch("backend.qdrant_service.get_sparse_vector", return_value=None)
 
 init_db_mock.start()
 ensure_indexes_mock.start()
 warmup_reranker_mock.start()
 container_warmup_mock.start()
 sparse_vector_mock.start()
-sparse_vector_mock_pkg.start()
 
 from backend.db.database import Base, get_session
 from backend.main import app

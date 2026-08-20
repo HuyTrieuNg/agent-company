@@ -23,8 +23,18 @@ from qdrant_client.models import (
 )
 
 from ..core.config import Settings, settings
-from .gemini_service import GeminiService
-from .ollama_service import OllamaService
+from .gemini_service import (
+    GeminiService,
+)
+from .gemini_service import (
+    generate_gemini_content as generate_gemini_content,
+)
+from .ollama_service import (
+    OllamaService,
+)
+from .ollama_service import (
+    generate_ollama_content as generate_ollama_content,
+)
 from .reranker_service import RerankerService, rerank_documents
 from .sources_registry import SourcesRegistry, sources_registry
 
@@ -38,13 +48,6 @@ embedder: Any = None
 
 def get_dense_embedder() -> Any:
     """Lazy-load SentenceTransformer dense embedder (singleton)."""
-    wrapper = sys.modules.get("backend.qdrant_service")
-    if wrapper and hasattr(wrapper, "get_dense_embedder"):
-        fn = wrapper.get_dense_embedder
-        if fn is not get_dense_embedder:
-            return fn()
-    if wrapper and hasattr(wrapper, "embedder") and wrapper.embedder is not None:
-        return wrapper.embedder
     global embedder, _dense_embedder
     if embedder is not None:
         return embedder
@@ -288,11 +291,8 @@ class QdrantService:
         self.sources_registry = sources_reg or sources_registry
 
     def _get_active_client(self) -> QdrantClient | None:
-        wrapper = sys.modules.get("backend.qdrant_service")
-        if wrapper and hasattr(wrapper, "qdrant_client"):
-            return wrapper.qdrant_client
-        if qdrant_client is not None:
-            return qdrant_client
+        if "qdrant_client" in sys.modules[__name__].__dict__:
+            return sys.modules[__name__].__dict__["qdrant_client"]
         return self.client
 
     async def ensure_payload_indexes(self) -> None:
@@ -350,12 +350,7 @@ class QdrantService:
         parsed_json: Any = None
         raw_text = ""
 
-        wrapper = sys.modules.get("backend.qdrant_service")
-        gemini_fn = getattr(wrapper, "generate_gemini_content", None) if wrapper else None
-        if gemini_fn is None and hasattr(
-            sys.modules.get("backend.services.gemini_service"), "generate_gemini_content"
-        ):
-            gemini_fn = sys.modules["backend.services.gemini_service"].generate_gemini_content
+        gemini_fn = sys.modules[__name__].__dict__.get("generate_gemini_content", None)
 
         # 1. Try Gemini first
         gemini_svc = self.gemini_service or GeminiService(self.settings.gemini_api_key)
@@ -392,11 +387,7 @@ class QdrantService:
 
         # 2. Fallback to Ollama
         if not parsed_json:
-            ollama_fn = getattr(wrapper, "generate_ollama_content", None) if wrapper else None
-            if ollama_fn is None and hasattr(
-                sys.modules.get("backend.services.ollama_service"), "generate_ollama_content"
-            ):
-                ollama_fn = sys.modules["backend.services.ollama_service"].generate_ollama_content
+            ollama_fn = sys.modules[__name__].__dict__.get("generate_ollama_content", None)
 
             ollama_svc = self.ollama_service or OllamaService(
                 self.settings.ollama_base_url, self.settings.model_name
@@ -571,11 +562,8 @@ class QdrantService:
                 candidates = [pt.payload for pt in response.points if pt.payload]
                 if candidates:
                     if rerank and len(candidates) > 1:
-                        wrapper = sys.modules.get("backend.qdrant_service")
-                        rerank_fn = (
-                            getattr(wrapper, "rerank_documents", rerank_documents)
-                            if wrapper
-                            else rerank_documents
+                        rerank_fn = sys.modules[__name__].__dict__.get(
+                            "rerank_documents", rerank_documents
                         )
                         results = await rerank_fn(
                             query=semantic_query,
@@ -587,15 +575,9 @@ class QdrantService:
                         results = candidates[:limit]
 
                     if results:
-                        wrapper = sys.modules.get("backend.qdrant_service")
-                        enrich_fn = (
-                            getattr(
-                                wrapper,
-                                "_enrich_with_full_article_chunks",
-                                self._enrich_with_full_article_chunks,
-                            )
-                            if wrapper
-                            else self._enrich_with_full_article_chunks
+                        enrich_fn = sys.modules[__name__].__dict__.get(
+                            "_enrich_with_full_article_chunks",
+                            self._enrich_with_full_article_chunks,
                         )
                         results = await enrich_fn(
                             top_chunks=results,
@@ -615,11 +597,8 @@ class QdrantService:
         conversation_context: str = "",
     ) -> tuple[list[dict[str, Any]], bool]:
         """Tìm kiếm bài báo hybrid kết hợp semantic extraction, metadata filter, RRF fusion và Cross-Encoder reranking."""
-        wrapper = sys.modules.get("backend.qdrant_service")
-        extract_fn = (
-            getattr(wrapper, "extract_structured_query", self.extract_structured_query)
-            if wrapper
-            else self.extract_structured_query
+        extract_fn = sys.modules[__name__].__dict__.get(
+            "extract_structured_query", self.extract_structured_query
         )
 
         # 1. Trích xuất Structured Query
@@ -641,7 +620,9 @@ class QdrantService:
         semantic_query = sq.get("semantic_query") or query
         site_filter = sq.get("site")
         raw_tags: Any = sq.get("tags") or []
-        tags: list[str] = [str(t) for t in cast(list[Any], raw_tags)] if isinstance(raw_tags, list) else []
+        tags: list[str] = (
+            [str(t) for t in cast(list[Any], raw_tags)] if isinstance(raw_tags, list) else []
+        )
         date_from = sq.get("date_from")
         date_to = sq.get("date_to")
 
@@ -741,10 +722,8 @@ class QdrantService:
             logger.info(
                 "[Qdrant] No candidates found with strict filter. Attempting relaxed search..."
             )
-            fallback_fn = (
-                getattr(wrapper, "_relaxed_fallback_search", self._relaxed_fallback_search)
-                if wrapper
-                else self._relaxed_fallback_search
+            fallback_fn = sys.modules[__name__].__dict__.get(
+                "_relaxed_fallback_search", self._relaxed_fallback_search
             )
             fallback_payloads = await fallback_fn(
                 query_vector=dense_vector,
@@ -760,9 +739,7 @@ class QdrantService:
                 return fallback_payloads, True
             return [], True
 
-        docs: list[dict[str, Any]] = [
-            dict(pt.payload) for pt in candidate_points if pt.payload
-        ]
+        docs: list[dict[str, Any]] = [dict(pt.payload) for pt in candidate_points if pt.payload]
 
         if not docs:
             return [], False
@@ -781,23 +758,15 @@ class QdrantService:
         # 6. Rerank kết quả
         reranked_docs = unique_docs
         try:
-            rerank_fn = (
-                getattr(wrapper, "rerank_documents", rerank_documents)
-                if wrapper
-                else rerank_documents
-            )
+            rerank_fn = sys.modules[__name__].__dict__.get("rerank_documents", rerank_documents)
             reranked_docs = await rerank_fn(query=semantic_query, docs=unique_docs, top_k=limit)
         except Exception as e:
             logger.warning(f"[Qdrant] Reranker failed, falling back to heuristic: {e}")
             reranked_docs = _heuristic_rerank(unique_docs, tags)[:limit]
 
         # 7. Enrich với full article body chunks
-        enrich_fn = (
-            getattr(
-                wrapper, "_enrich_with_full_article_chunks", self._enrich_with_full_article_chunks
-            )
-            if wrapper
-            else self._enrich_with_full_article_chunks
+        enrich_fn = sys.modules[__name__].__dict__.get(
+            "_enrich_with_full_article_chunks", self._enrich_with_full_article_chunks
         )
         final_docs = await enrich_fn(top_chunks=reranked_docs, article_limit=limit)
         return final_docs, True

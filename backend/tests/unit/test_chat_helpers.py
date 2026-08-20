@@ -1,5 +1,5 @@
-from backend.models import ChatMessage
 from backend.routers.chat import _build_conversation_context
+from backend.schemas.chat import ChatMessage
 
 
 def test_build_conversation_context_empty():

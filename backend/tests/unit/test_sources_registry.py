@@ -1,4 +1,4 @@
-from backend.sources_registry import sources_registry
+from backend.services.sources_registry import sources_registry
 
 
 def test_sources_registry_loading():

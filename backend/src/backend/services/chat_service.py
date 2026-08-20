@@ -454,25 +454,15 @@ class ChatService:
             )
 
         reply = ""
-        # Check if generate_gemini_content_with_tools was patched in routers.chat or gemini_service
+        # Check if generate_gemini_content_with_tools was patched in routers.chat
         router_mod = sys.modules.get("backend.routers.chat")
         fn = getattr(router_mod, "generate_gemini_content_with_tools", None) if router_mod else None
-        compat_mod = sys.modules.get("backend.gemini_service")
-        fn2 = (
-            getattr(compat_mod, "generate_gemini_content_with_tools", None) if compat_mod else None
-        )
 
-        tool_fn = None
         if fn is not None and fn is not generate_gemini_content_with_tools:
-            tool_fn = fn
-        elif fn2 is not None and fn2 is not generate_gemini_content_with_tools:
-            tool_fn = fn2
-
-        if tool_fn is not None:
             logger.info(
                 f"Using patched generate_gemini_content_with_tools (history turns: {len(request.history)})."
             )
-            reply = await tool_fn(
+            reply = await fn(
                 api_key=self.settings.gemini_api_key,
                 model=self.settings.gemini_model_chat,
                 message=request.message,

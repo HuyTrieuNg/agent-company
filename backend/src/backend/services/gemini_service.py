@@ -2,7 +2,6 @@
 
 import asyncio
 import logging
-import sys
 from collections.abc import Callable, Coroutine
 from typing import Any, cast
 
@@ -300,12 +299,6 @@ _client_cache: dict[str, genai.Client] = {}
 
 def get_gemini_client(api_key: str | None = None) -> genai.Client:
     """Return a cached Gemini client for the given API key."""
-    compat_mod = sys.modules.get("backend.gemini_service")
-    if compat_mod is not None:
-        compat_fn = getattr(compat_mod, "get_gemini_client", None)
-        if compat_fn is not None and compat_fn is not get_gemini_client:
-            return compat_fn(api_key or "")
-
     key = api_key or ""
     if key not in _client_cache:
         _client_cache[key] = genai.Client(api_key=key)

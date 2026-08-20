@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from backend.qdrant_service import (
+from backend.services.qdrant_service import (
     _doc_tag_score,
     _heuristic_rerank,
     _normalise_slug,
@@ -16,7 +16,7 @@ from backend.qdrant_service import (
 
 
 @pytest.mark.asyncio
-@patch("backend.qdrant_service.generate_gemini_content", new_callable=AsyncMock)
+@patch("backend.services.qdrant_service.generate_gemini_content", new_callable=AsyncMock)
 async def test_extract_structured_query_gemini_success(mock_generate_gemini):
     # Setup mock return value for Gemini content generation
     mock_response = json.dumps(
@@ -41,8 +41,8 @@ async def test_extract_structured_query_gemini_success(mock_generate_gemini):
 
 
 @pytest.mark.asyncio
-@patch("backend.qdrant_service.generate_gemini_content", new_callable=AsyncMock)
-@patch("backend.qdrant_service.generate_ollama_content", new_callable=AsyncMock)
+@patch("backend.services.qdrant_service.generate_gemini_content", new_callable=AsyncMock)
+@patch("backend.services.qdrant_service.generate_ollama_content", new_callable=AsyncMock)
 async def test_extract_structured_query_fallback_to_ollama(
     mock_generate_ollama, mock_generate_gemini
 ):
@@ -69,8 +69,8 @@ async def test_extract_structured_query_fallback_to_ollama(
 
 
 @pytest.mark.asyncio
-@patch("backend.qdrant_service.generate_gemini_content", new_callable=AsyncMock)
-@patch("backend.qdrant_service.generate_ollama_content", new_callable=AsyncMock)
+@patch("backend.services.qdrant_service.generate_gemini_content", new_callable=AsyncMock)
+@patch("backend.services.qdrant_service.generate_ollama_content", new_callable=AsyncMock)
 async def test_extract_structured_query_all_fail(mock_generate_ollama, mock_generate_gemini):
     # Both fail
     mock_generate_gemini.side_effect = Exception("Gemini down")
@@ -84,7 +84,7 @@ async def test_extract_structured_query_all_fail(mock_generate_ollama, mock_gene
 
 
 @pytest.mark.asyncio
-@patch("backend.qdrant_service.extract_structured_query", new_callable=AsyncMock)
+@patch("backend.services.qdrant_service.extract_structured_query", new_callable=AsyncMock)
 async def test_search_articles_uses_cache(mock_extract_query):
     # Scenario: needs_retrieval=False and cached_articles provided
     mock_extract_query.return_value = {"semantic_query": "giá vàng", "needs_retrieval": False}
@@ -109,10 +109,10 @@ async def test_search_articles_uses_cache(mock_extract_query):
 
 
 @pytest.mark.asyncio
-@patch("backend.qdrant_service.extract_structured_query", new_callable=AsyncMock)
-@patch("backend.qdrant_service.get_dense_embedder")
-@patch("backend.qdrant_service.qdrant_client")
-@patch("backend.qdrant_service.rerank_documents", new_callable=AsyncMock)
+@patch("backend.services.qdrant_service.extract_structured_query", new_callable=AsyncMock)
+@patch("backend.services.qdrant_service.get_dense_embedder")
+@patch("backend.services.qdrant_service.qdrant_client")
+@patch("backend.services.qdrant_service.rerank_documents", new_callable=AsyncMock)
 async def test_search_articles_performs_qdrant_query(
     mock_rerank, mock_qdrant, mock_get_embedder, mock_extract_query
 ):
@@ -310,7 +310,7 @@ def test_heuristic_rerank_default_boost_preserves_strong_rank():
 
 
 @pytest.mark.asyncio
-@patch("backend.qdrant_service.extract_structured_query", new_callable=AsyncMock)
+@patch("backend.services.qdrant_service.extract_structured_query", new_callable=AsyncMock)
 async def test_search_articles_no_cache_forces_retrieval(mock_extract_query):
     """When cached_articles=None and needs_retrieval=False, cache is None so did_retrieve is True."""
     mock_extract_query.return_value = {
@@ -321,7 +321,7 @@ async def test_search_articles_no_cache_forces_retrieval(mock_extract_query):
     }
 
     # Patch embedder and qdrant_client to None so the function falls through gracefully
-    with patch("backend.qdrant_service.qdrant_client", None):
+    with patch("backend.services.qdrant_service.qdrant_client", None):
         results, did_retrieve = await search_articles(
             query="bitcoin", limit=5, cached_articles=None, conversation_context=""
         )
@@ -330,9 +330,9 @@ async def test_search_articles_no_cache_forces_retrieval(mock_extract_query):
 
 
 @pytest.mark.asyncio
-@patch("backend.qdrant_service.extract_structured_query", new_callable=AsyncMock)
-@patch("backend.qdrant_service.get_dense_embedder", return_value=None)
-@patch("backend.qdrant_service.qdrant_client", None)
+@patch("backend.services.qdrant_service.extract_structured_query", new_callable=AsyncMock)
+@patch("backend.services.qdrant_service.get_dense_embedder", return_value=None)
+@patch("backend.services.qdrant_service.qdrant_client", None)
 async def test_search_articles_no_embedder_returns_empty(mock_get_embedder, mock_extract_query):
     """If embedder is None (load failed), search should return empty list gracefully."""
     mock_extract_query.return_value = {

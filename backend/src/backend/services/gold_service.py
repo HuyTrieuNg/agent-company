@@ -259,7 +259,9 @@ class GoldService:
 
                     history: list[GoldHistoryPoint] = []
                     for raw_item in reversed(cast(list[Any], hist_raw)):
-                        item: dict[str, Any] = cast(dict[str, Any], raw_item) if isinstance(raw_item, dict) else {}
+                        item: dict[str, Any] = (
+                            cast(dict[str, Any], raw_item) if isinstance(raw_item, dict) else {}
+                        )
                         date_str = item.get("date")
                         if not date_str:
                             continue
@@ -269,18 +271,32 @@ class GoldService:
                             continue
 
                         prices_raw: Any = item.get("prices", {})
-                        prices: dict[str, Any] = cast(dict[str, Any], prices_raw) if isinstance(prices_raw, dict) else {}
+                        prices: dict[str, Any] = (
+                            cast(dict[str, Any], prices_raw) if isinstance(prices_raw, dict) else {}
+                        )
                         raw_type_val: Any = prices.get(type_code)
-                        price_dict: dict[str, Any] = cast(dict[str, Any], raw_type_val) if isinstance(raw_type_val, dict) else {}
+                        price_dict: dict[str, Any] = (
+                            cast(dict[str, Any], raw_type_val)
+                            if isinstance(raw_type_val, dict)
+                            else {}
+                        )
                         if not price_dict:
                             for vc in vcodes:
                                 if vc in prices:
                                     vc_val: Any = prices[vc]
-                                    price_dict = cast(dict[str, Any], vc_val) if isinstance(vc_val, dict) else {}
+                                    price_dict = (
+                                        cast(dict[str, Any], vc_val)
+                                        if isinstance(vc_val, dict)
+                                        else {}
+                                    )
                                     break
                             if not price_dict and prices:
                                 first_val: Any = next(iter(prices.values()))
-                                price_dict = cast(dict[str, Any], first_val) if isinstance(first_val, dict) else {}
+                                price_dict = (
+                                    cast(dict[str, Any], first_val)
+                                    if isinstance(first_val, dict)
+                                    else {}
+                                )
 
                         buy = float(price_dict.get("buy", 0))
                         sell = float(price_dict.get("sell", 0))

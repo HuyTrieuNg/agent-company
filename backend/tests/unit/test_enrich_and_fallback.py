@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from backend.qdrant_service import (
+from backend.services.qdrant_service import (
     _enrich_with_full_article_chunks,
     _relaxed_fallback_search,
     search_articles,
@@ -51,14 +51,14 @@ class TestEnrichWithFullArticleChunks:
         top_chunks = [
             {"url_hash": "abc123", "chunk_index": 0, "text": "chunk 0"},
         ]
-        with patch("backend.qdrant_service.qdrant_client", None):
+        with patch("backend.services.qdrant_service.qdrant_client", None):
             result = await _enrich_with_full_article_chunks(top_chunks)
         assert result == top_chunks
 
     @pytest.mark.asyncio
     async def test_returns_input_when_top_chunks_is_empty(self):
         """Không có chunks đầu vào → trả về list rỗng."""
-        with patch("backend.qdrant_service.qdrant_client", MagicMock()):
+        with patch("backend.services.qdrant_service.qdrant_client", MagicMock()):
             result = await _enrich_with_full_article_chunks([])
         assert result == []
 
@@ -76,7 +76,7 @@ class TestEnrichWithFullArticleChunks:
         mock_qdrant = MagicMock()
         mock_qdrant.scroll.return_value = _make_scroll_result(all_article_chunks)
 
-        with patch("backend.qdrant_service.qdrant_client", mock_qdrant):
+        with patch("backend.services.qdrant_service.qdrant_client", mock_qdrant):
             result = await _enrich_with_full_article_chunks(top_chunks)
 
         assert len(result) == 3
@@ -111,7 +111,7 @@ class TestEnrichWithFullArticleChunks:
             _make_scroll_result(chunks_b),
         ]
 
-        with patch("backend.qdrant_service.qdrant_client", mock_qdrant):
+        with patch("backend.services.qdrant_service.qdrant_client", mock_qdrant):
             result = await _enrich_with_full_article_chunks(top_chunks, article_limit=5)
 
         assert len(result) == 4
@@ -137,7 +137,7 @@ class TestEnrichWithFullArticleChunks:
         mock_qdrant = MagicMock()
         mock_qdrant.scroll.return_value = _make_scroll_result(chunks_a)
 
-        with patch("backend.qdrant_service.qdrant_client", mock_qdrant):
+        with patch("backend.services.qdrant_service.qdrant_client", mock_qdrant):
             result = await _enrich_with_full_article_chunks(top_chunks, article_limit=1)
 
         # Chỉ bài hash_a được enrich
@@ -160,7 +160,7 @@ class TestEnrichWithFullArticleChunks:
         mock_qdrant = MagicMock()
         mock_qdrant.scroll.return_value = _make_scroll_result(all_chunks)
 
-        with patch("backend.qdrant_service.qdrant_client", mock_qdrant):
+        with patch("backend.services.qdrant_service.qdrant_client", mock_qdrant):
             result = await _enrich_with_full_article_chunks(top_chunks)
 
         # scroll chỉ được gọi đúng 1 lần dù có 2 chunk cùng bài
@@ -177,7 +177,7 @@ class TestEnrichWithFullArticleChunks:
         mock_qdrant = MagicMock()
         mock_qdrant.scroll.side_effect = Exception("Qdrant connection timeout")
 
-        with patch("backend.qdrant_service.qdrant_client", mock_qdrant):
+        with patch("backend.services.qdrant_service.qdrant_client", mock_qdrant):
             result = await _enrich_with_full_article_chunks(top_chunks)
 
         # Phải trả về chunk gốc thay vì crash
@@ -196,7 +196,7 @@ class TestEnrichWithFullArticleChunks:
         mock_qdrant = MagicMock()
         mock_qdrant.scroll.return_value = _make_scroll_result(chunks_a)
 
-        with patch("backend.qdrant_service.qdrant_client", mock_qdrant):
+        with patch("backend.services.qdrant_service.qdrant_client", mock_qdrant):
             result = await _enrich_with_full_article_chunks(top_chunks)
 
         # Chunk không hash phải đứng sau
@@ -212,7 +212,7 @@ class TestRelaxedFallbackSearch:
     @pytest.mark.asyncio
     async def test_returns_empty_when_qdrant_client_is_none(self):
         """Không có Qdrant client → trả về list rỗng."""
-        with patch("backend.qdrant_service.qdrant_client", None):
+        with patch("backend.services.qdrant_service.qdrant_client", None):
             result = await _relaxed_fallback_search(
                 query_vector=[0.1, 0.2],
                 semantic_query="test",
@@ -224,7 +224,9 @@ class TestRelaxedFallbackSearch:
         assert result == []
 
     @pytest.mark.asyncio
-    @patch("backend.qdrant_service._enrich_with_full_article_chunks", new_callable=AsyncMock)
+    @patch(
+        "backend.services.qdrant_service._enrich_with_full_article_chunks", new_callable=AsyncMock
+    )
     async def test_stops_at_first_successful_strategy(self, mock_enrich):
         """
         Nếu strategy đầu tiên (site+tags, no date) đã có kết quả,
@@ -235,7 +237,7 @@ class TestRelaxedFallbackSearch:
         mock_qdrant.query_points.return_value = _make_qdrant_response([mock_payload])
         mock_enrich.return_value = [mock_payload]
 
-        with patch("backend.qdrant_service.qdrant_client", mock_qdrant):
+        with patch("backend.services.qdrant_service.qdrant_client", mock_qdrant):
             result = await _relaxed_fallback_search(
                 query_vector=[0.1, 0.2],
                 semantic_query="kinh tế",
@@ -250,7 +252,9 @@ class TestRelaxedFallbackSearch:
         assert len(result) > 0
 
     @pytest.mark.asyncio
-    @patch("backend.qdrant_service._enrich_with_full_article_chunks", new_callable=AsyncMock)
+    @patch(
+        "backend.services.qdrant_service._enrich_with_full_article_chunks", new_callable=AsyncMock
+    )
     async def test_tries_next_strategy_when_previous_yields_empty(self, mock_enrich):
         """
         Strategy 1 trả về rỗng → thử strategy 2.
@@ -264,7 +268,7 @@ class TestRelaxedFallbackSearch:
         ]
         mock_enrich.return_value = [mock_payload]
 
-        with patch("backend.qdrant_service.qdrant_client", mock_qdrant):
+        with patch("backend.services.qdrant_service.qdrant_client", mock_qdrant):
             result = await _relaxed_fallback_search(
                 query_vector=[0.1, 0.2],
                 semantic_query="tài chính",
@@ -278,7 +282,9 @@ class TestRelaxedFallbackSearch:
         assert len(result) > 0
 
     @pytest.mark.asyncio
-    @patch("backend.qdrant_service._enrich_with_full_article_chunks", new_callable=AsyncMock)
+    @patch(
+        "backend.services.qdrant_service._enrich_with_full_article_chunks", new_callable=AsyncMock
+    )
     async def test_falls_through_to_pure_semantic_when_all_filtered_strategies_fail(
         self, mock_enrich
     ):
@@ -294,7 +300,7 @@ class TestRelaxedFallbackSearch:
         ]
         mock_enrich.return_value = [mock_payload]
 
-        with patch("backend.qdrant_service.qdrant_client", mock_qdrant):
+        with patch("backend.services.qdrant_service.qdrant_client", mock_qdrant):
             result = await _relaxed_fallback_search(
                 query_vector=[0.1, 0.2],
                 semantic_query="vấn đề hiếm gặp",
@@ -313,7 +319,7 @@ class TestRelaxedFallbackSearch:
         mock_qdrant = MagicMock()
         mock_qdrant.query_points.return_value = _make_qdrant_response([])
 
-        with patch("backend.qdrant_service.qdrant_client", mock_qdrant):
+        with patch("backend.services.qdrant_service.qdrant_client", mock_qdrant):
             result = await _relaxed_fallback_search(
                 query_vector=[0.1, 0.2],
                 semantic_query="không tìm thấy gì",
@@ -326,8 +332,10 @@ class TestRelaxedFallbackSearch:
         assert result == []
 
     @pytest.mark.asyncio
-    @patch("backend.qdrant_service.rerank_documents", new_callable=AsyncMock)
-    @patch("backend.qdrant_service._enrich_with_full_article_chunks", new_callable=AsyncMock)
+    @patch("backend.services.qdrant_service.rerank_documents", new_callable=AsyncMock)
+    @patch(
+        "backend.services.qdrant_service._enrich_with_full_article_chunks", new_callable=AsyncMock
+    )
     async def test_applies_reranking_when_enabled(self, mock_enrich, mock_rerank):
         """Khi rerank=True, rerank_documents phải được gọi."""
         payloads = [
@@ -339,7 +347,7 @@ class TestRelaxedFallbackSearch:
         mock_rerank.return_value = [payloads[0]]
         mock_enrich.return_value = [payloads[0]]
 
-        with patch("backend.qdrant_service.qdrant_client", mock_qdrant):
+        with patch("backend.services.qdrant_service.qdrant_client", mock_qdrant):
             result = await _relaxed_fallback_search(
                 query_vector=[0.1, 0.2],
                 semantic_query="test rerank",
@@ -353,7 +361,9 @@ class TestRelaxedFallbackSearch:
         assert result is not None
 
     @pytest.mark.asyncio
-    @patch("backend.qdrant_service._enrich_with_full_article_chunks", new_callable=AsyncMock)
+    @patch(
+        "backend.services.qdrant_service._enrich_with_full_article_chunks", new_callable=AsyncMock
+    )
     async def test_skips_filtered_strategies_when_no_site_and_no_tags(self, mock_enrich):
         """
         Khi site='' và tags=[], các strategy 1 và 2 không có điều kiện filter
@@ -364,7 +374,7 @@ class TestRelaxedFallbackSearch:
         mock_qdrant.query_points.return_value = _make_qdrant_response([mock_payload])
         mock_enrich.return_value = [mock_payload]
 
-        with patch("backend.qdrant_service.qdrant_client", mock_qdrant):
+        with patch("backend.services.qdrant_service.qdrant_client", mock_qdrant):
             result = await _relaxed_fallback_search(
                 query_vector=[0.1],
                 semantic_query="chủ đề rất chung",
@@ -379,7 +389,9 @@ class TestRelaxedFallbackSearch:
         assert len(result) > 0
 
     @pytest.mark.asyncio
-    @patch("backend.qdrant_service._enrich_with_full_article_chunks", new_callable=AsyncMock)
+    @patch(
+        "backend.services.qdrant_service._enrich_with_full_article_chunks", new_callable=AsyncMock
+    )
     async def test_uses_relaxed_score_threshold_040(self, mock_enrich):
         """query_points phải được gọi với score_threshold=0.4 (nới lỏng hơn 0.5)."""
         mock_payload = {"url_hash": "hY", "chunk_index": 0, "text": "x"}
@@ -387,7 +399,7 @@ class TestRelaxedFallbackSearch:
         mock_qdrant.query_points.return_value = _make_qdrant_response([mock_payload])
         mock_enrich.return_value = [mock_payload]
 
-        with patch("backend.qdrant_service.qdrant_client", mock_qdrant):
+        with patch("backend.services.qdrant_service.qdrant_client", mock_qdrant):
             await _relaxed_fallback_search(
                 query_vector=[0.1],
                 semantic_query="x",
@@ -409,11 +421,13 @@ class TestRelaxedFallbackSearch:
 
 class TestSearchArticlesIntegration:
     @pytest.mark.asyncio
-    @patch("backend.qdrant_service.extract_structured_query", new_callable=AsyncMock)
-    @patch("backend.qdrant_service.get_dense_embedder")
-    @patch("backend.qdrant_service._relaxed_fallback_search", new_callable=AsyncMock)
-    @patch("backend.qdrant_service._enrich_with_full_article_chunks", new_callable=AsyncMock)
-    @patch("backend.qdrant_service.qdrant_client")
+    @patch("backend.services.qdrant_service.extract_structured_query", new_callable=AsyncMock)
+    @patch("backend.services.qdrant_service.get_dense_embedder")
+    @patch("backend.services.qdrant_service._relaxed_fallback_search", new_callable=AsyncMock)
+    @patch(
+        "backend.services.qdrant_service._enrich_with_full_article_chunks", new_callable=AsyncMock
+    )
+    @patch("backend.services.qdrant_service.qdrant_client")
     async def test_fallback_triggered_when_strict_query_returns_empty(
         self, mock_qdrant, mock_enrich, mock_fallback, mock_get_embedder, mock_extract
     ):
@@ -453,11 +467,13 @@ class TestSearchArticlesIntegration:
         assert all(r.get("_is_fallback") is True for r in results)
 
     @pytest.mark.asyncio
-    @patch("backend.qdrant_service.extract_structured_query", new_callable=AsyncMock)
-    @patch("backend.qdrant_service.get_dense_embedder")
-    @patch("backend.qdrant_service._relaxed_fallback_search", new_callable=AsyncMock)
-    @patch("backend.qdrant_service._enrich_with_full_article_chunks", new_callable=AsyncMock)
-    @patch("backend.qdrant_service.qdrant_client")
+    @patch("backend.services.qdrant_service.extract_structured_query", new_callable=AsyncMock)
+    @patch("backend.services.qdrant_service.get_dense_embedder")
+    @patch("backend.services.qdrant_service._relaxed_fallback_search", new_callable=AsyncMock)
+    @patch(
+        "backend.services.qdrant_service._enrich_with_full_article_chunks", new_callable=AsyncMock
+    )
+    @patch("backend.services.qdrant_service.qdrant_client")
     async def test_returns_empty_when_both_strict_and_fallback_return_empty(
         self, mock_qdrant, mock_enrich, mock_fallback, mock_get_embedder, mock_extract
     ):
@@ -484,12 +500,14 @@ class TestSearchArticlesIntegration:
         assert did_retrieve is True
 
     @pytest.mark.asyncio
-    @patch("backend.qdrant_service.extract_structured_query", new_callable=AsyncMock)
-    @patch("backend.qdrant_service.get_dense_embedder")
-    @patch("backend.qdrant_service._relaxed_fallback_search", new_callable=AsyncMock)
-    @patch("backend.qdrant_service._enrich_with_full_article_chunks", new_callable=AsyncMock)
-    @patch("backend.qdrant_service.rerank_documents", new_callable=AsyncMock)
-    @patch("backend.qdrant_service.qdrant_client")
+    @patch("backend.services.qdrant_service.extract_structured_query", new_callable=AsyncMock)
+    @patch("backend.services.qdrant_service.get_dense_embedder")
+    @patch("backend.services.qdrant_service._relaxed_fallback_search", new_callable=AsyncMock)
+    @patch(
+        "backend.services.qdrant_service._enrich_with_full_article_chunks", new_callable=AsyncMock
+    )
+    @patch("backend.services.qdrant_service.rerank_documents", new_callable=AsyncMock)
+    @patch("backend.services.qdrant_service.qdrant_client")
     async def test_enrich_called_after_rerank_on_successful_strict_query(
         self, mock_qdrant, mock_rerank, mock_enrich, mock_fallback, mock_get_embedder, mock_extract
     ):
@@ -533,10 +551,10 @@ class TestSearchArticlesIntegration:
         assert results == enriched
 
     @pytest.mark.asyncio
-    @patch("backend.qdrant_service.extract_structured_query", new_callable=AsyncMock)
-    @patch("backend.qdrant_service.get_dense_embedder")
-    @patch("backend.qdrant_service._relaxed_fallback_search", new_callable=AsyncMock)
-    @patch("backend.qdrant_service.qdrant_client")
+    @patch("backend.services.qdrant_service.extract_structured_query", new_callable=AsyncMock)
+    @patch("backend.services.qdrant_service.get_dense_embedder")
+    @patch("backend.services.qdrant_service._relaxed_fallback_search", new_callable=AsyncMock)
+    @patch("backend.services.qdrant_service.qdrant_client")
     async def test_fallback_not_triggered_when_strict_has_results(
         self, mock_qdrant, mock_fallback, mock_get_embedder, mock_extract
     ):
@@ -558,9 +576,12 @@ class TestSearchArticlesIntegration:
         mock_qdrant.query_points.return_value = _make_qdrant_response([chunk])
 
         with (
-            patch("backend.qdrant_service.rerank_documents", new_callable=AsyncMock) as mock_rerank,
             patch(
-                "backend.qdrant_service._enrich_with_full_article_chunks", new_callable=AsyncMock
+                "backend.services.qdrant_service.rerank_documents", new_callable=AsyncMock
+            ) as mock_rerank,
+            patch(
+                "backend.services.qdrant_service._enrich_with_full_article_chunks",
+                new_callable=AsyncMock,
             ) as mock_enrich,
         ):
             mock_rerank.return_value = [chunk]

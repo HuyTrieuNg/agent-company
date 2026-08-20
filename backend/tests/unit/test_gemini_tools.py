@@ -15,7 +15,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from backend.gemini_service import generate_gemini_content_with_tools
+from backend.services.gemini_service import generate_gemini_content_with_tools
 
 # ─────────────────────────────────────────────────────────────
 # Helpers to build Gemini-like mock responses
@@ -70,7 +70,7 @@ def _make_multi_fc_response(calls: list[tuple]) -> MagicMock:
 
 
 @pytest.mark.asyncio
-@patch("backend.gemini_service.get_gemini_client")
+@patch("backend.services.gemini_service.get_gemini_client")
 async def test_no_tool_calls_returns_text_directly(mock_get_client):
     """When model doesn't call any tools, text is returned immediately."""
     mock_client = MagicMock()
@@ -94,7 +94,7 @@ async def test_no_tool_calls_returns_text_directly(mock_get_client):
 
 
 @pytest.mark.asyncio
-@patch("backend.gemini_service.get_gemini_client")
+@patch("backend.services.gemini_service.get_gemini_client")
 async def test_single_tool_call_then_text(mock_get_client):
     """
     Iteration 1: model calls get_stock_overview(VNM)
@@ -126,7 +126,7 @@ async def test_single_tool_call_then_text(mock_get_client):
 
 
 @pytest.mark.asyncio
-@patch("backend.gemini_service.get_gemini_client")
+@patch("backend.services.gemini_service.get_gemini_client")
 async def test_multiple_tool_calls_in_one_iteration(mock_get_client):
     """
     Model requests TWO function calls in a single iteration.
@@ -168,7 +168,7 @@ async def test_multiple_tool_calls_in_one_iteration(mock_get_client):
 
 
 @pytest.mark.asyncio
-@patch("backend.gemini_service.get_gemini_client")
+@patch("backend.services.gemini_service.get_gemini_client")
 async def test_chained_tool_calls_two_iterations(mock_get_client):
     """
     Model makes one tool call in iter 1, then another in iter 2, then returns text.
@@ -197,7 +197,7 @@ async def test_chained_tool_calls_two_iterations(mock_get_client):
 
 
 @pytest.mark.asyncio
-@patch("backend.gemini_service.get_gemini_client")
+@patch("backend.services.gemini_service.get_gemini_client")
 async def test_max_iterations_guard_stops_infinite_loop(mock_get_client):
     """If model keeps calling tools beyond max_iterations, loop stops gracefully."""
     mock_client = MagicMock()
@@ -225,7 +225,7 @@ async def test_max_iterations_guard_stops_infinite_loop(mock_get_client):
 
 
 @pytest.mark.asyncio
-@patch("backend.gemini_service.get_gemini_client")
+@patch("backend.services.gemini_service.get_gemini_client")
 async def test_model_fallback_on_rate_limit(mock_get_client):
     """First model hits 429 → second model succeeds."""
     mock_client = MagicMock()
@@ -253,7 +253,7 @@ async def test_model_fallback_on_rate_limit(mock_get_client):
 
 
 @pytest.mark.asyncio
-@patch("backend.gemini_service.get_gemini_client")
+@patch("backend.services.gemini_service.get_gemini_client")
 async def test_all_models_fail_raises_exception(mock_get_client):
     """When all models fail, exception is propagated."""
     mock_client = MagicMock()
@@ -274,7 +274,7 @@ async def test_all_models_fail_raises_exception(mock_get_client):
 
 
 @pytest.mark.asyncio
-@patch("backend.gemini_service.get_gemini_client")
+@patch("backend.services.gemini_service.get_gemini_client")
 async def test_timeout_raises_timeout_error(mock_get_client):
     """asyncio.TimeoutError is propagated when model is too slow."""
     import asyncio
@@ -298,7 +298,7 @@ async def test_timeout_raises_timeout_error(mock_get_client):
 
 
 @pytest.mark.asyncio
-@patch("backend.gemini_service.get_gemini_client")
+@patch("backend.services.gemini_service.get_gemini_client")
 async def test_tool_executor_error_result_sent_to_model(mock_get_client):
     """
     If tool_executor returns an error JSON string, it is sent to the model
@@ -330,8 +330,9 @@ async def test_tool_executor_error_result_sent_to_model(mock_get_client):
 # ─────────────────────────────────────────────────────────────
 
 
+@patch("backend.services.qdrant_service.QdrantService.search_articles", new_callable=AsyncMock, return_value=([], False))
 @patch("backend.routers.chat.generate_gemini_content_with_tools", new_callable=AsyncMock)
-def test_chat_endpoint_uses_function_calling(mock_tools_fn):
+def test_chat_endpoint_uses_function_calling(mock_tools_fn, mock_search):
     """POST /api/chat calls generate_gemini_content_with_tools (not old generate_gemini_content)."""
     from fastapi.testclient import TestClient
 
@@ -355,8 +356,9 @@ def test_chat_endpoint_uses_function_calling(mock_tools_fn):
     mock_tools_fn.assert_called_once()
 
 
+@patch("backend.services.qdrant_service.QdrantService.search_articles", new_callable=AsyncMock, return_value=([], False))
 @patch("backend.routers.chat.generate_gemini_content_with_tools", new_callable=AsyncMock)
-def test_chat_endpoint_tool_declarations_passed(mock_tools_fn):
+def test_chat_endpoint_tool_declarations_passed(mock_tools_fn, mock_search):
     """tool_declarations must be passed from chat router to Gemini service."""
     from fastapi.testclient import TestClient
 
@@ -385,8 +387,9 @@ def test_chat_endpoint_tool_declarations_passed(mock_tools_fn):
     assert "get_stock_technicals" in tool_names
 
 
+@patch("backend.services.qdrant_service.QdrantService.search_articles", new_callable=AsyncMock, return_value=([], False))
 @patch("backend.routers.chat.generate_gemini_content_with_tools", new_callable=AsyncMock)
-def test_chat_history_grows_correctly_with_tools_flow(mock_tools_fn):
+def test_chat_history_grows_correctly_with_tools_flow(mock_tools_fn, mock_search):
     """Response history contains exactly user message + model reply appended."""
     from fastapi.testclient import TestClient
 

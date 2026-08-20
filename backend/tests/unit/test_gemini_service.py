@@ -3,12 +3,12 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from backend.gemini_service import _build_contents, generate_gemini_content
-from backend.models import ChatMessage
+from backend.schemas.chat import ChatMessage
+from backend.services.gemini_service import _build_contents, generate_gemini_content
 
 
 @pytest.mark.asyncio
-@patch("backend.gemini_service.get_gemini_client")
+@patch("backend.services.gemini_service.get_gemini_client")
 async def test_generate_gemini_content_fallback_success(mock_get_client):
     # Setup mock client
     mock_client = MagicMock()
@@ -46,7 +46,7 @@ async def test_generate_gemini_content_fallback_success(mock_get_client):
 
 
 @pytest.mark.asyncio
-@patch("backend.gemini_service.get_gemini_client")
+@patch("backend.services.gemini_service.get_gemini_client")
 async def test_generate_gemini_content_all_fail(mock_get_client):
     mock_client = MagicMock()
     mock_get_client.return_value = mock_client
@@ -73,7 +73,7 @@ async def test_generate_gemini_content_all_fail(mock_get_client):
 
 
 @pytest.mark.asyncio
-@patch("backend.gemini_service.get_gemini_client")
+@patch("backend.services.gemini_service.get_gemini_client")
 async def test_generate_gemini_content_single_model_success(mock_get_client):
     """Single model string (not a list) succeeds on first attempt."""
     mock_client = MagicMock()
@@ -98,7 +98,7 @@ async def test_generate_gemini_content_single_model_success(mock_get_client):
 
 
 @pytest.mark.asyncio
-@patch("backend.gemini_service.get_gemini_client")
+@patch("backend.services.gemini_service.get_gemini_client")
 async def test_generate_gemini_content_empty_text_response(mock_get_client):
     """If model returns None text, result should be empty string (not None)."""
     mock_client = MagicMock()
@@ -120,7 +120,7 @@ async def test_generate_gemini_content_empty_text_response(mock_get_client):
 
 
 @pytest.mark.asyncio
-@patch("backend.gemini_service.get_gemini_client")
+@patch("backend.services.gemini_service.get_gemini_client")
 async def test_generate_gemini_content_empty_model_list_raises(mock_get_client):
     """Empty model list should raise ValueError immediately."""
     mock_client = MagicMock()
@@ -135,7 +135,7 @@ async def test_generate_gemini_content_empty_model_list_raises(mock_get_client):
 
 
 @pytest.mark.asyncio
-@patch("backend.gemini_service.get_gemini_client")
+@patch("backend.services.gemini_service.get_gemini_client")
 async def test_generate_gemini_content_with_history(mock_get_client):
     """When history + string contents are provided, _build_contents is used (multi-turn)."""
     mock_client = MagicMock()
@@ -168,7 +168,7 @@ async def test_generate_gemini_content_with_history(mock_get_client):
 
 
 @pytest.mark.asyncio
-@patch("backend.gemini_service.get_gemini_client")
+@patch("backend.services.gemini_service.get_gemini_client")
 async def test_generate_gemini_content_timeout_raises(mock_get_client):
     """TimeoutError on all models should propagate as the last exception."""
     mock_client = MagicMock()
