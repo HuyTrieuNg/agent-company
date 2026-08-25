@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
-import Sidebar from "@/components/Sidebar";
-import { ChatProvider } from "@/lib/ChatContext";
+import AppProviders from "@/components/AppProviders";
 
 const inter = Inter({
   subsets: ["latin", "vietnamese"],
@@ -10,8 +9,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Agent Company",
-  description: "Multi-agent AI platform powered by Google Gemini & LangGraph",
+  title: "Agent Company - Trợ Lý AI Tài Chính & Tin Tức",
+  description: "Multi-agent AI platform powered by Google Gemini & Qdrant Vector DB",
 };
 
 export default function RootLayout({
@@ -20,18 +19,9 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="vi">
-      <body className={`${inter.className} bg-[#0a0a0f] text-slate-50 antialiased min-h-screen`}>
-        <ChatProvider>
-          <div className="flex h-screen overflow-hidden">
-            <Sidebar />
-            {/* Main content — offset by sidebar width */}
-            <div className="flex flex-1 flex-col overflow-y-auto pl-15 md:pl-60">
-              {children}
-            </div>
-
-          </div>
-        </ChatProvider>
+    <html lang="vi" suppressHydrationWarning>
+      <body className={`${inter.className} bg-[#07070a] text-slate-50 min-h-screen selection:bg-violet-500/30 selection:text-white`}>
+        <AppProviders>{children}</AppProviders>
       </body>
     </html>
   );

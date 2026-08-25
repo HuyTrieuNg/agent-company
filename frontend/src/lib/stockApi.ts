@@ -1,7 +1,7 @@
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
 const STOCK_TIMEOUT_MS = 30_000;
 
-const cache = new Map<string, { promise: Promise<any>; timestamp: number }>();
+const cache = new Map<string, { promise: Promise<unknown>; timestamp: number }>();
 const CACHE_TTL = 2 * 60 * 1000; // 2 phút
 
 export function clearStockCache() {
@@ -11,7 +11,7 @@ export function clearStockCache() {
 async function stockFetch<T>(path: string): Promise<T> {
   const cached = cache.get(path);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-    return cached.promise;
+    return cached.promise as Promise<T>;
   }
 
   const promise = (async () => {

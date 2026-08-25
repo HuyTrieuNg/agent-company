@@ -45,11 +45,11 @@ export interface UserPreference {
 
 export interface NewsArticleItem extends Record<string, unknown> {
   id?: string;
-  url_hash: string;
+  url_hash?: string;
   title: string;
   sapo: string;
   site: string;
-  category: string;
+  category?: string;
   published_at?: string;
   author?: string;
   tags?: string[];
@@ -57,10 +57,19 @@ export interface NewsArticleItem extends Record<string, unknown> {
   score?: number;
 }
 
-
 export interface FullArticleItem extends NewsArticleItem {
   content: string;
   chunk_count?: number;
+}
+
+export interface FetchNewsParams {
+  query?: string;
+  category?: string;
+  site?: string;
+  date_from?: string;
+  date_to?: string;
+  page?: number;
+  limit?: number;
 }
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
@@ -72,7 +81,6 @@ const RETRY_DELAY_MS = 1_200;   // đợi 1.2s trước khi retry (cho tunnel re
 /** Kiểm tra có phải lỗi mạng có thể retry không (network-changed, connection reset...) */
 function isRetryableNetworkError(err: unknown): boolean {
   if (!(err instanceof Error)) return false;
-  // AbortError do user timeout → KHÔNG retry
   if (err instanceof DOMException && err.name === "AbortError") return false;
   const msg = err.message.toLowerCase();
   return (
@@ -155,7 +163,6 @@ export async function sendMessage(
   }
 }
 
-
 export async function fetchSessions(): Promise<ChatSessionSummary[]> {
   const res = await fetchWithRetry(`${API_URL}/api/chat/sessions`, {
     headers: { "ngrok-skip-browser-warning": "true" },
@@ -218,15 +225,7 @@ export async function fetchNewsCategories(): Promise<{ sites: { code: string; na
   return res.json();
 }
 
-export async function fetchNewsArticles(params?: {
-  query?: string;
-  category?: string;
-  site?: string;
-  date_from?: string;
-  date_to?: string;
-  page?: number;
-  limit?: number;
-}): Promise<{ page: number; limit: number; total_retrieved: number; articles: NewsArticleItem[] }> {
+export async function fetchNewsArticles(params?: FetchNewsParams): Promise<{ page: number; limit: number; total_retrieved: number; articles: NewsArticleItem[] }> {
   const url = new URL(`${API_URL}/api/news/articles`, typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
   if (params?.query) url.searchParams.set("query", params.query);
   if (params?.category) url.searchParams.set("category", params.category);
@@ -255,5 +254,3 @@ export async function fetchFullArticles(urlHashes: string[]): Promise<{ articles
   if (!res.ok) throw new Error("Không thể tải nội dung đầy đủ bài báo");
   return res.json();
 }
-
-

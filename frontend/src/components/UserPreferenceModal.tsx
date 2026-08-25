@@ -2,6 +2,18 @@
 
 import { useState, useEffect } from "react";
 import { fetchPreferences, updatePreferences, UserPreference } from "@/lib/api";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { SlidersHorizontal } from "lucide-react";
+import { toast } from "sonner";
 
 interface Props {
   isOpen: boolean;
@@ -17,167 +29,153 @@ export default function UserPreferenceModal({ isOpen, onClose }: Props) {
   });
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    if (isOpen) {
+    if (!isOpen) return;
+    let isCancelled = false;
+
+    async function load() {
       setLoading(true);
-      setMessage(null);
-      fetchPreferences()
-        .then((data) => setPref(data))
-        .catch((err) => setMessage(err.message || "Không thể tải cài đặt."))
-        .finally(() => setLoading(false));
+      try {
+        const data = await fetchPreferences();
+        if (!isCancelled) {
+          setPref(data);
+        }
+      } catch (err) {
+        if (!isCancelled) {
+          toast.error("Không thể tải cài đặt context: " + (err as Error).message);
+        }
+      } finally {
+        if (!isCancelled) {
+          setLoading(false);
+        }
+      }
     }
+
+    load();
+
+    return () => {
+      isCancelled = true;
+    };
   }, [isOpen]);
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
-    setMessage(null);
     try {
       await updatePreferences(pref);
-      setMessage("Đã lưu cài đặt Context thành công!");
+      toast.success("Đã lưu cài đặt User Context & Persona thành công!");
       setTimeout(() => {
         onClose();
-      }, 1000);
+      }, 500);
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "Đã có lỗi xảy ra.");
+      toast.error(err instanceof Error ? err.message : "Đã có lỗi xảy ra khi lưu.");
     } finally {
       setSaving(false);
     }
   }
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-4 animate-fade-up">
-      <div className="relative w-full max-w-lg rounded-2xl border border-white/10 bg-[#12121a] p-6 shadow-2xl">
-        {/* Header */}
-        <div className="mb-5 flex items-center justify-between border-b border-white/10 pb-4">
-          <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-linear-to-br from-[#8b5cf6] to-[#06b6d4] text-sm">
-              ⚙️
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-slate-100">Cài đặt User Context & Preference</h3>
-              <p className="text-xs text-slate-400">Tùy chỉnh thông tin và phong cách trả lời cho AI Chatbot</p>
-            </div>
-          </div>
-          <button
-            onClick={onClose}
-            className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 hover:bg-white/10 hover:text-slate-100 cursor-pointer"
-          >
-            ✕
-          </button>
-        </div>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
+      <DialogContent className="max-w-md bg-[#0d0d16] border-white/10 p-6 text-slate-100">
+        <DialogHeader className="border-b border-white/10 pb-4">
+          <DialogTitle className="text-base font-bold text-slate-50 flex items-center gap-2">
+            <SlidersHorizontal className="h-4 w-4 text-violet-400" />
+            Cài đặt User Context & Persona
+          </DialogTitle>
+          <DialogDescription className="text-xs text-slate-400">
+            Tùy chỉnh thông tin và phong cách phản hồi cho Chatbot AI
+          </DialogDescription>
+        </DialogHeader>
 
         {loading ? (
           <div className="flex py-12 justify-center text-slate-400">
-            <span className="h-6 w-6 animate-spin rounded-full border-2 border-white/20 border-t-[#8b5cf6]" />
+            <span className="h-6 w-6 animate-spin rounded-full border-2 border-violet-500/20 border-t-violet-500" />
           </div>
         ) : (
-          <form onSubmit={handleSave} className="flex flex-col gap-4">
-            {message && (
-              <div
-                className={`rounded-lg px-3.5 py-2.5 text-xs font-medium ${
-                  message.includes("thành công")
-                    ? "bg-emerald-500/15 border border-emerald-500/30 text-emerald-400"
-                    : "bg-red-500/15 border border-red-500/30 text-red-400"
-                }`}
-              >
-                {message}
-              </div>
-            )}
-
+          <form onSubmit={handleSave} className="flex flex-col gap-4 py-2">
             {/* Role / Title */}
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-slate-300">
+              <label className="mb-1.5 block text-xs font-semibold text-slate-300">
                 Danh xưng / Vai trò của bạn
               </label>
-              <input
+              <Input
                 type="text"
-                className="w-full rounded-xl border border-white/10 bg-white/5 px-3.5 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-[#8b5cf6] focus:outline-hidden"
-                placeholder="VD: Nhà đầu tư cá nhân, Phân tích viên, Sinh viên tài chính..."
+                placeholder="VD: Nhà đầu tư cá nhân, Phân tích viên, Sinh viên..."
                 value={pref.role_title}
                 onChange={(e) => setPref({ ...pref, role_title: e.target.value })}
+                className="bg-white/5 border-white/10 text-xs"
               />
             </div>
 
             {/* Interested Topics */}
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-slate-300">
+              <label className="mb-1.5 block text-xs font-semibold text-slate-300">
                 Lĩnh vực & Mã quan tâm hàng đầu
               </label>
-              <input
+              <Input
                 type="text"
-                className="w-full rounded-xl border border-white/10 bg-white/5 px-3.5 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-[#8b5cf6] focus:outline-hidden"
-                placeholder="VD: Cổ phiếu VNM, HPG, Vàng SJC, Tỷ giá USD, Bất động sản..."
+                placeholder="VD: Cổ phiếu VNM, HPG, Vàng SJC, Tỷ giá USD..."
                 value={pref.interested_topics}
                 onChange={(e) => setPref({ ...pref, interested_topics: e.target.value })}
+                className="bg-white/5 border-white/10 text-xs"
               />
             </div>
 
             {/* Response Style */}
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-slate-300">
-                Phong cách phản hồi của AI
+              <label className="mb-1.5 block text-xs font-semibold text-slate-300">
+                Phong cách phản hồi
               </label>
               <div className="grid grid-cols-3 gap-2">
                 {[
-                  { id: "sut_tich", label: "Ngắn gọn súc tích" },
-                  { id: "chi_tiet", label: "Chi tiết cặn kẽ" },
+                  { id: "sut_tich", label: "Súc tích" },
+                  { id: "chi_tiet", label: "Chi tiết" },
                   { id: "phan_tich", label: "Phân tích số liệu" },
                 ].map((item) => (
-                  <button
+                  <Button
                     key={item.id}
                     type="button"
+                    variant={pref.response_style === item.id ? "default" : "outline"}
+                    size="sm"
                     onClick={() => setPref({ ...pref, response_style: item.id })}
-                    className={`rounded-xl border px-3 py-2 text-xs font-medium transition-all cursor-pointer ${
+                    className={`rounded-xl text-xs font-semibold ${
                       pref.response_style === item.id
-                        ? "border-[#8b5cf6] bg-[#8b5cf6]/20 text-[#a78bfa]"
+                        ? "bg-violet-600/20 text-violet-300 border-violet-500 shadow-xs"
                         : "border-white/10 bg-white/5 text-slate-400 hover:bg-white/10 hover:text-slate-200"
                     }`}
                   >
                     {item.label}
-                  </button>
+                  </Button>
                 ))}
               </div>
             </div>
 
             {/* Custom Instructions */}
             <div>
-              <label className="mb-1.5 block text-xs font-medium text-slate-300">
-                Yêu cầu / Ghi chú thêm cho AI
+              <label className="mb-1.5 block text-xs font-semibold text-slate-300">
+                Chỉ dẫn đặc biệt cho AI
               </label>
               <textarea
                 rows={2}
-                className="w-full rounded-xl border border-white/10 bg-white/5 px-3.5 py-2 text-xs text-slate-100 placeholder-slate-500 focus:border-[#8b5cf6] focus:outline-hidden resize-none"
-                placeholder="VD: Trả lời bằng tiếng Việt chuyên nghiệp, trích dẫn rõ nguồn CafeF hoặc Vietstock..."
+                className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-100 placeholder:text-slate-500 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 resize-none transition-colors"
+                placeholder="VD: Trả lời bằng tiếng Việt, trích dẫn nguồn cụ thể..."
                 value={pref.custom_instructions}
                 onChange={(e) => setPref({ ...pref, custom_instructions: e.target.value })}
               />
             </div>
 
-            {/* Footer Buttons */}
-            <div className="mt-3 flex justify-end gap-2.5">
-              <button
-                type="button"
-                onClick={onClose}
-                className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-xs font-medium text-slate-300 hover:bg-white/10 cursor-pointer"
-              >
+            <DialogFooter className="pt-2 border-t border-white/10 gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={onClose}>
                 Hủy
-              </button>
-              <button
-                type="submit"
-                disabled={saving}
-                className="flex items-center gap-2 rounded-xl bg-linear-to-br from-[#8b5cf6] to-[#6d28d9] px-4 py-2 text-xs font-medium text-white shadow-lg transition-transform hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 cursor-pointer"
-              >
+              </Button>
+              <Button type="submit" variant="gradient" size="sm" disabled={saving}>
                 {saving ? "Đang lưu..." : "Lưu cài đặt"}
-              </button>
-            </div>
+              </Button>
+            </DialogFooter>
           </form>
         )}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

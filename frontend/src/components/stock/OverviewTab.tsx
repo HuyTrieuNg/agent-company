@@ -1,32 +1,14 @@
 "use client";
 
 import { StockOverview } from "@/lib/stockApi";
-
-function Skeleton({ className = "" }: { className?: string }) {
-  return <div className={`animate-pulse rounded-lg bg-white/8 ${className}`} />;
-}
-
-function MetricCard({
-  label,
-  value,
-  color,
-}: {
-  label: string;
-  value: string;
-  color?: string;
-}) {
-  return (
-    <div className="flex flex-col gap-1 rounded-2xl border border-white/8 bg-white/4 p-4 transition-all duration-200 hover:border-[#8b5cf6]/30 hover:bg-white/6">
-      <span className="text-xs text-slate-500">{label}</span>
-      <span
-        className="text-lg font-bold text-slate-100"
-        style={color ? { color } : undefined}
-      >
-        {value}
-      </span>
-    </div>
-  );
-}
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/ui/tooltip";
 
 function fmt(val: number | null | undefined, digits = 2): string {
   if (val == null || isNaN(Number(val))) return "—";
@@ -41,6 +23,21 @@ function fmtMarketCap(val: number | null): string {
   return val.toLocaleString("vi-VN");
 }
 
+const METRIC_TIPS: Record<string, string> = {
+  "Giá hiện tại": "Mức giá khớp lệnh gần nhất",
+  "Thay đổi %": "Mức tăng / giảm so với giá tham chiếu",
+  "Vốn hóa thị trường": "Tổng giá trị thị trường = Giá cổ phiếu × Số lượng lưu hành",
+  "P/E": "Hệ số Giá trên Thu nhập mỗi cổ phiếu (Price to Earnings)",
+  "P/B": "Hệ số Giá trên Giá trị sổ sách (Price to Book)",
+  "P/S": "Hệ số Giá trên Doanh thu (Price to Sales)",
+  "EPS": "Thu nhập trên mỗi cổ phần (Earnings Per Share)",
+  "Beta": "Độ nhạy của cổ phiếu so với biến động thị trường chung",
+  "Khối lượng": "Tổng khối lượng giao dịch trong ngày",
+  "Khối lượng trung bình": "Khối lượng giao dịch bình quân nhiều phiên",
+  "52 tuần cao nhất": "Mức giá cao nhất được ghi nhận trong 1 năm qua",
+  "52 tuần thấp nhất": "Mức giá thấp nhất được ghi nhận trong 1 năm qua",
+};
+
 export default function OverviewTab({
   overview,
   loading,
@@ -50,10 +47,22 @@ export default function OverviewTab({
 }) {
   if (loading) {
     return (
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-        {Array.from({ length: 12 }).map((_, i) => (
-          <Skeleton key={i} className="h-20" />
-        ))}
+      <div className="flex flex-col gap-6">
+        <Card className="p-5">
+          <div className="flex items-start gap-4">
+            <Skeleton className="h-14 w-14 rounded-2xl" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-6 w-40" />
+              <Skeleton className="h-4 w-60" />
+              <Skeleton className="h-12 w-full mt-2" />
+            </div>
+          </div>
+        </Card>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          {Array.from({ length: 12 }).map((_, i) => (
+            <Skeleton key={i} className="h-20 rounded-2xl" />
+          ))}
+        </div>
       </div>
     );
   }
@@ -94,52 +103,65 @@ export default function OverviewTab({
   return (
     <div className="flex flex-col gap-6">
       {/* Company Info */}
-      <div className="rounded-2xl border border-white/8 bg-white/4 p-5">
+      <Card className="border-white/8 bg-white/4 p-5 backdrop-blur-xl">
         <div className="flex items-start gap-4">
           <div
-            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-2xl font-extrabold shadow-lg"
-            style={{
-              background: "linear-gradient(135deg, #8b5cf6 0%, #06b6d4 100%)",
-              boxShadow: "0 4px 20px rgba(139,92,246,0.3)",
-            }}
+            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-2xl font-extrabold text-white shadow-lg bg-linear-to-br from-violet-600 to-cyan-500 shadow-violet-500/25"
           >
             {overview.symbol.slice(0, 2)}
           </div>
           <div className="flex-1">
             <div className="flex flex-wrap items-center gap-2 mb-1">
-              <h2 className="text-xl font-extrabold text-white">{overview.symbol}</h2>
+              <h2 className="text-xl font-extrabold text-slate-50 tracking-tight">{overview.symbol}</h2>
               {overview.exchange && (
-                <span className="rounded-md border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-slate-400 uppercase">
+                <Badge variant="secondary" className="text-[10px] font-bold uppercase tracking-wider">
                   {overview.exchange}
-                </span>
+                </Badge>
               )}
               {overview.industry && (
-                <span className="rounded-full border border-[#8b5cf6]/30 bg-[#8b5cf6]/10 px-2.5 py-0.5 text-[11px] text-[#a78bfa]">
+                <Badge variant="cyan" className="text-[11px] font-medium">
                   {overview.industry}
-                </span>
+                </Badge>
               )}
             </div>
             <p className="text-sm font-medium text-slate-300">{overview.company_name}</p>
             {overview.description && (
-              <p className="mt-2 text-sm text-slate-500 leading-relaxed line-clamp-3">
+              <p className="mt-2 text-xs md:text-sm text-slate-400 leading-relaxed line-clamp-3">
                 {overview.description}
               </p>
             )}
           </div>
         </div>
-      </div>
+      </Card>
 
       {/* Metrics Grid */}
       <div>
-        <h3 className="mb-3 text-sm font-semibold text-slate-400 uppercase tracking-wider">
+        <h3 className="mb-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">
           Chỉ số cơ bản
         </h3>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {metrics.map((m) => (
-            <MetricCard key={m.label} label={m.label} value={m.value} color={m.color} />
+            <Tooltip key={m.label}>
+              <TooltipTrigger asChild>
+                <Card className="group flex flex-col justify-between p-4 border-white/8 bg-white/4 transition-all duration-200 hover:border-violet-500/30 hover:bg-white/6 cursor-help">
+                  <span className="text-xs text-slate-400">{m.label}</span>
+                  <span
+                    className="mt-1 text-base md:text-lg font-bold text-slate-100 group-hover:text-white transition-colors"
+                    style={m.color ? { color: m.color } : undefined}
+                  >
+                    {m.value}
+                  </span>
+                </Card>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p className="font-semibold text-violet-300">{m.label}</p>
+                <p className="text-[11px] text-slate-300">{METRIC_TIPS[m.label] || m.label}</p>
+              </TooltipContent>
+            </Tooltip>
           ))}
         </div>
       </div>
     </div>
   );
 }
+

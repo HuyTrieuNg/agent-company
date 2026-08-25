@@ -1,6 +1,9 @@
 "use client";
 
 import { useRef, useState, useEffect, useCallback, useMemo } from "react";
+import { useTheme } from "next-themes";
+import { Card, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export interface ChartDataPoint {
   time?: string;
@@ -55,6 +58,8 @@ export default function InteractivePriceChart({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [hoverIndex, setHoverIndex] = useState<number | null>(null);
   const [containerWidth, setContainerWidth] = useState<number>(600);
+  const { resolvedTheme } = useTheme();
+  const isLightTheme = resolvedTheme === "light";
 
   // Measure container width for responsive canvas rendering
   useEffect(() => {
@@ -172,7 +177,7 @@ export default function InteractivePriceChart({
 
     // 1. Draw horizontal grid lines & Y-axis labels
     ctx.lineWidth = 1;
-    ctx.strokeStyle = "rgba(255, 255, 255, 0.06)";
+    ctx.strokeStyle = isLightTheme ? "rgba(15, 23, 42, 0.08)" : "rgba(255, 255, 255, 0.06)";
     ctx.fillStyle = "#64748b";
     ctx.font = "11px Inter, sans-serif";
     ctx.textAlign = "left";
@@ -250,7 +255,7 @@ export default function InteractivePriceChart({
       ctx.setLineDash([4, 4]);
       ctx.moveTo(hoverX, padTop);
       ctx.lineTo(hoverX, padTop + chartH);
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
+      ctx.strokeStyle = isLightTheme ? "rgba(15, 23, 42, 0.35)" : "rgba(255, 255, 255, 0.4)";
       ctx.lineWidth = 1.2;
       ctx.stroke();
       ctx.setLineDash([]);
@@ -278,7 +283,7 @@ export default function InteractivePriceChart({
         }
       });
     }
-  }, [containerWidth, height, data, activeSeries, minY, maxY, yTicks, xTicks, hoverIndex, unit]);
+  }, [containerWidth, height, data, activeSeries, minY, maxY, yTicks, xTicks, hoverIndex, unit, isLightTheme]);
 
   useEffect(() => {
     drawCanvas();
@@ -308,13 +313,13 @@ export default function InteractivePriceChart({
   const activePoint = hoverIndex != null ? data[hoverIndex] : null;
 
   return (
-    <div className="flex flex-col gap-3 rounded-2xl border border-white/8 bg-white/4 p-4 shadow-xl backdrop-blur-md">
+    <Card className="flex flex-col gap-3 rounded-2xl border-white/8 bg-[#0c0c14] p-4 shadow-xl backdrop-blur-md">
       {/* Header & Controls */}
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-white/6 pb-3">
         <div>
-          {title && <h3 className="text-sm font-bold text-slate-100">{title}</h3>}
+          {title && <CardTitle className="text-sm font-bold text-slate-100">{title}</CardTitle>}
           {activePoint ? (
-            <div className="flex items-center gap-3 text-xs text-slate-400 mt-0.5">
+            <div className="flex items-center gap-3 text-xs text-slate-400 mt-1">
               <span>🕒 {activePoint.date || activePoint.time}</span>
               {activeSeries.map((s) => {
                 const val = activePoint[s.key] ?? activePoint.price ?? activePoint.close;
@@ -326,27 +331,25 @@ export default function InteractivePriceChart({
               })}
             </div>
           ) : (
-            <p className="text-xs text-slate-500">Rê chuột lên biểu đồ để xem thông tin chi tiết</p>
+            <p className="text-xs text-slate-500 mt-1">Rê chuột lên biểu đồ để xem thông tin chi tiết</p>
           )}
         </div>
 
-        {/* Timeframe buttons */}
+        {/* Timeframe selector using Tabs */}
         {onTimeframeChange && (
-          <div className="flex items-center gap-1 rounded-xl border border-white/8 bg-white/5 p-1">
-            {["1D", "1W", "1M", "1Y"].map((tf) => (
-              <button
-                key={tf}
-                onClick={() => onTimeframeChange(tf)}
-                className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-all ${
-                  timeframe === tf
-                    ? "bg-[#8b5cf6] text-white shadow-[0_2px_8px_rgba(139,92,246,0.4)]"
-                    : "text-slate-400 hover:bg-white/5 hover:text-slate-200"
-                }`}
-              >
-                {tf}
-              </button>
-            ))}
-          </div>
+          <Tabs value={timeframe} onValueChange={onTimeframeChange} className="w-auto">
+            <TabsList className="h-8 bg-white/5 p-0.5 border border-white/8 rounded-xl">
+              {["1D", "1W", "1M", "1Y"].map((tf) => (
+                <TabsTrigger
+                  key={tf}
+                  value={tf}
+                  className="h-7 px-2.5 text-xs font-semibold rounded-lg data-[state=active]:bg-violet-600 data-[state=active]:text-white data-[state=active]:shadow-sm"
+                >
+                  {tf}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
         )}
       </div>
 
@@ -362,7 +365,7 @@ export default function InteractivePriceChart({
         {/* Floating Tooltip Card */}
         {activePoint && hoverIndex != null && (
           <div
-            className="pointer-events-none absolute top-3 z-10 rounded-xl border border-white/15 bg-black/75 px-3 py-2 text-xs text-slate-100 backdrop-blur-md shadow-2xl transition-all duration-75"
+            className="pointer-events-none absolute top-3 z-10 rounded-xl border border-white/25 bg-black/75 px-3 py-2 text-xs text-[#f1f5f9] backdrop-blur-md shadow-2xl transition-all duration-75"
             style={{
               left: Math.min(
                 Math.max(10, (hoverIndex / Math.max(1, data.length - 1)) * (containerWidth - 160)),
@@ -370,7 +373,7 @@ export default function InteractivePriceChart({
               ),
             }}
           >
-            <div className="text-[11px] font-semibold text-slate-400 mb-1 border-b border-white/10 pb-1">
+            <div className="text-[11px] font-semibold text-[#94a3b8] mb-1 border-b border-white/20 pb-1">
               {activePoint.date || activePoint.time}
             </div>
             <div className="flex flex-col gap-1">
@@ -379,14 +382,14 @@ export default function InteractivePriceChart({
                 return (
                   <div key={s.key} className="flex justify-between gap-3">
                     <span style={{ color: s.color }}>{s.label}:</span>
-                    <span className="font-bold text-slate-50">
+                    <span className="font-bold text-[#f8fafc]">
                       {formatNumber(typeof val === "number" ? val : null, unit)}
                     </span>
                   </div>
                 );
               })}
               {activePoint.buy != null && activePoint.sell != null && (
-                <div className="flex justify-between gap-3 border-t border-white/10 pt-1 text-[10px] text-slate-400">
+                <div className="flex justify-between gap-3 border-t border-white/20 pt-1 text-[10px] text-[#94a3b8]">
                   <span>Chênh lệch (Spread):</span>
                   <span className="font-semibold text-amber-400">
                     {formatNumber(Math.abs(Number(activePoint.sell) - Number(activePoint.buy)), unit)}
@@ -397,6 +400,6 @@ export default function InteractivePriceChart({
           </div>
         )}
       </div>
-    </div>
+    </Card>
   );
 }

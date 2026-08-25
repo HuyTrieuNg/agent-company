@@ -1,35 +1,41 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import {
-  getStockOverview,
-  getStockTrading,
-  getStockTechnicals,
-  getStockFinancials,
-  getStockNews,
-  searchStocks,
-  StockOverview,
-  TradingResponse,
-  TechnicalsResponse,
-  FinancialsResponse,
-  NewsResponse,
-  SearchResult,
-} from "@/lib/stockApi";
+  useStockOverview,
+  useStockTrading,
+  useStockTechnicals,
+  useStockFinancials,
+  useStockNews,
+} from "@/hooks/useStocks";
+import { searchStocks, SearchResult } from "@/lib/stockApi";
 import StockHeader from "@/components/stock/StockHeader";
 import OverviewTab from "@/components/stock/OverviewTab";
 import TradingTab from "@/components/stock/TradingTab";
 import TechnicalsTab from "@/components/stock/TechnicalsTab";
 import FinancialsTab from "@/components/stock/FinancialsTab";
 import NewsTab from "@/components/stock/NewsTab";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
+import {
+  Search,
+  Building2,
+  TrendingUp,
+  LineChart,
+  Landmark,
+  Newspaper,
+} from "lucide-react";
 
 type Tab = "overview" | "trading" | "technicals" | "financials" | "news";
 
-const TABS: { id: Tab; label: string; icon: string }[] = [
-  { id: "overview", label: "Tổng quan", icon: "🏢" },
-  { id: "trading", label: "Giao dịch", icon: "📈" },
-  { id: "technicals", label: "Kỹ thuật", icon: "🔬" },
-  { id: "financials", label: "Tài chính", icon: "💰" },
-  { id: "news", label: "Tin tức", icon: "📰" },
+const TABS: { id: Tab; label: string; icon: typeof Building2 }[] = [
+  { id: "overview", label: "Tổng quan", icon: Building2 },
+  { id: "trading", label: "Giao dịch", icon: TrendingUp },
+  { id: "technicals", label: "Kỹ thuật", icon: LineChart },
+  { id: "financials", label: "Tài chính", icon: Landmark },
+  { id: "news", label: "Tin tức", icon: Newspaper },
 ];
 
 const POPULAR_STOCKS = ["VNM", "VIC", "HPG", "VHM", "FPT", "MWG", "TCB", "ACB"];
@@ -46,24 +52,28 @@ function SearchBar({
   const [showDropdown, setShowDropdown] = useState(false);
 
   useEffect(() => {
-    setSearchInput(initialValue);
-  }, [initialValue]);
-
-  useEffect(() => {
-    if (!searchInput || searchInput.length < 1) {
-      setSearchResults([]);
+    if (!searchInput || searchInput.trim().length === 0) {
       return;
     }
     const timer = setTimeout(async () => {
       try {
         const res = await searchStocks(searchInput);
-        setSearchResults(res.results);
+        setSearchResults(res.results || []);
       } catch {
         setSearchResults([]);
       }
     }, 300);
     return () => clearTimeout(timer);
   }, [searchInput]);
+
+  function handleInputChange(val: string) {
+    const formatted = val.toUpperCase();
+    setSearchInput(formatted);
+    if (!formatted.trim()) {
+      setSearchResults([]);
+    }
+    setShowDropdown(true);
+  }
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -76,25 +86,20 @@ function SearchBar({
   return (
     <div className="relative flex-1 max-w-xs">
       <form onSubmit={handleSearch} className="relative">
-        <input
+        <Input
           type="text"
           value={searchInput}
-          onChange={(e) => { setSearchInput(e.target.value.toUpperCase()); setShowDropdown(true); }}
+          onChange={(e) => handleInputChange(e.target.value)}
           onFocus={() => setShowDropdown(true)}
-          onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
+          onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
           placeholder="Tìm mã CK… (VNM, VIC…)"
-          className="w-full rounded-xl border border-white/10 bg-white/5 px-4 py-2 pr-10 text-sm text-slate-100 placeholder-slate-600 outline-none focus:border-[#8b5cf6]/60 focus:shadow-[0_0_0_3px_rgba(139,92,246,0.1)] transition-all duration-200"
+          className="pr-9 bg-white/5 border-white/10 text-xs rounded-xl font-bold tracking-wider uppercase placeholder:normal-case placeholder:font-normal"
           id="stock-search-input"
         />
-        <button
-          type="submit"
-          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-200 transition-colors"
-        >
-          🔍
-        </button>
+        <Search className="absolute right-3 top-2.5 h-4 w-4 text-slate-500 pointer-events-none" />
       </form>
       {showDropdown && searchResults.length > 0 && (
-        <div className="absolute z-50 mt-1 w-full rounded-xl border border-white/10 bg-[#12121a] shadow-2xl overflow-hidden">
+        <Card className="absolute z-50 mt-1 w-full p-1 border-white/15 bg-[#0f0e1a] shadow-2xl overflow-hidden backdrop-blur-xl animate-fade-up">
           {searchResults.slice(0, 6).map((r) => (
             <button
               key={r.ticker}
@@ -102,13 +107,15 @@ function SearchBar({
                 onSelect(r.ticker);
                 setShowDropdown(false);
               }}
-              className="flex w-full items-center gap-3 px-4 py-2.5 text-left text-sm hover:bg-white/5 transition-colors"
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-xs hover:bg-violet-600/20 hover:text-white transition-colors cursor-pointer"
             >
-              <span className="font-bold text-[#a78bfa]">{r.ticker}</span>
-              <span className="text-slate-400 truncate">{r.organ_name}</span>
+              <Badge variant="cyan" className="font-bold text-[10px] py-0">
+                {r.ticker}
+              </Badge>
+              <span className="text-slate-300 truncate text-xs">{r.organ_name}</span>
             </button>
           ))}
-        </div>
+        </Card>
       )}
     </div>
   );
@@ -117,151 +124,114 @@ function SearchBar({
 export default function StockPage() {
   const [symbol, setSymbol] = useState("VNM");
   const [activeTab, setActiveTab] = useState<Tab>("overview");
+  const [reportType, setReportType] = useState("income_statement");
+  const [period, setPeriod] = useState("quarter");
 
-  const [overview, setOverview] = useState<StockOverview | null>(null);
-  const [trading, setTrading] = useState<TradingResponse | null>(null);
-  const [technicals, setTechnicals] = useState<TechnicalsResponse | null>(null);
-  const [financials, setFinancials] = useState<FinancialsResponse | null>(null);
-  const [news, setNews] = useState<NewsResponse | null>(null);
-
-  const [loadingOverview, setLoadingOverview] = useState(false);
-  const [loadingTab, setLoadingTab] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // Load overview whenever symbol changes
-  useEffect(() => {
-    if (!symbol) return;
-    setOverview(null);
-    setLoadingOverview(true);
-    setError(null);
-    getStockOverview(symbol)
-      .then(setOverview)
-      .catch((e) => setError(e.message))
-      .finally(() => setLoadingOverview(false));
-  }, [symbol]);
-
-  // Load tab data when tab changes
-  const loadTabData = useCallback(async (tab: Tab, sym: string) => {
-    setLoadingTab(true);
-    try {
-      if (tab === "trading") {
-        const data = await getStockTrading(sym);
-        setTrading(data);
-      } else if (tab === "technicals") {
-        const data = await getStockTechnicals(sym);
-        setTechnicals(data);
-      } else if (tab === "financials") {
-        const data = await getStockFinancials(sym);
-        setFinancials(data);
-      } else if (tab === "news") {
-        const data = await getStockNews(sym);
-        setNews(data);
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Lỗi tải dữ liệu");
-    } finally {
-      setLoadingTab(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (activeTab !== "overview" && symbol) {
-      loadTabData(activeTab, symbol);
-    }
-  }, [activeTab, symbol, loadTabData]);
+  // React Query Hooks
+  const { data: overview, isLoading: loadingOverview, error: overviewError } = useStockOverview(symbol);
+  const { data: trading, isLoading: loadingTrading } = useStockTrading(symbol);
+  const { data: technicals, isLoading: loadingTechnicals } = useStockTechnicals(symbol);
+  const { data: financials, isLoading: loadingFinancials } = useStockFinancials(symbol, reportType, period);
+  const { data: news, isLoading: loadingNews } = useStockNews(symbol);
 
   function selectSymbol(sym: string) {
     setSymbol(sym.toUpperCase());
     setActiveTab("overview");
-    setTrading(null);
-    setTechnicals(null);
-    setFinancials(null);
-    setNews(null);
   }
 
+  const handleReportChange = async (newReportType: string, newPeriod: string) => {
+    setReportType(newReportType);
+    setPeriod(newPeriod);
+  };
+
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-[#0a0a0f]">
+    <div className="flex h-full flex-col overflow-hidden bg-[#07070a] text-slate-100">
       {/* ── Top Bar ── */}
-      <div className="flex shrink-0 items-center gap-4 border-b border-white/8 px-5 py-3">
+      <div className="flex shrink-0 items-center justify-between gap-4 border-b border-white/8 px-6 py-3 bg-[#07070a]/90 backdrop-blur-xl">
         {/* Search */}
-        <SearchBar initialValue={symbol} onSelect={selectSymbol} />
+        <SearchBar key={symbol} initialValue={symbol} onSelect={selectSymbol} />
 
         {/* Popular chips */}
-        <div className="hidden md:flex flex-wrap gap-1.5">
+        <div className="hidden md:flex flex-wrap items-center gap-1.5">
+          <span className="text-[11px] text-slate-500 mr-1">Phổ biến:</span>
           {POPULAR_STOCKS.map((s) => (
-            <button
+            <Badge
               key={s}
-              onClick={() => selectSymbol(s)}
               id={`chip-${s}`}
-              className={`rounded-lg px-3 py-1 text-xs font-medium transition-all duration-150 ${
+              variant={symbol === s ? "default" : "secondary"}
+              onClick={() => selectSymbol(s)}
+              className={`cursor-pointer text-xs font-bold transition-all ${
                 symbol === s
-                  ? "bg-[#8b5cf6]/20 text-[#a78bfa] border border-[#8b5cf6]/40"
-                  : "border border-white/8 text-slate-500 hover:border-[#8b5cf6]/30 hover:text-slate-200 hover:bg-white/5"
+                  ? "bg-violet-600 text-white shadow-sm shadow-violet-500/25 border-violet-500"
+                  : "bg-white/5 hover:bg-white/10 hover:text-white border-white/8"
               }`}
             >
               {s}
-            </button>
+            </Badge>
           ))}
         </div>
       </div>
 
       {/* ── Stock Header (price info) ── */}
-      <StockHeader overview={overview} loading={loadingOverview} />
+      <StockHeader overview={overview || null} loading={loadingOverview} />
 
-      {/* ── Tab Navigation ── */}
-      <div className="shrink-0 border-b border-white/8 px-5">
-        <nav className="flex gap-0.5 overflow-x-auto scrollbar-none">
-          {TABS.map((tab) => (
-            <button
-              key={tab.id}
-              id={`tab-${tab.id}`}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-1.5 whitespace-nowrap px-4 py-3 text-sm font-medium transition-all duration-150 border-b-2 ${
-                activeTab === tab.id
-                  ? "border-[#8b5cf6] text-[#a78bfa]"
-                  : "border-transparent text-slate-500 hover:text-slate-200"
-              }`}
-            >
-              <span>{tab.icon}</span>
-              {tab.label}
-            </button>
-          ))}
-        </nav>
+      {/* ── Tab Navigation using shadcn Tabs ── */}
+      <div className="shrink-0 border-b border-white/8 px-6 py-2 bg-[#07070a]">
+        <Tabs
+          value={activeTab}
+          onValueChange={(v) => setActiveTab(v as Tab)}
+          className="w-full"
+        >
+          <TabsList className="bg-transparent border-none p-0 gap-2 h-auto justify-start">
+            {TABS.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <TabsTrigger
+                  key={tab.id}
+                  value={tab.id}
+                  id={`tab-${tab.id}`}
+                  className="flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold data-[state=active]:bg-violet-600/20 data-[state=active]:text-violet-300 data-[state=active]:border-violet-500/40 border border-transparent text-slate-400 hover:text-slate-200 transition-all cursor-pointer"
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  <span>{tab.label}</span>
+                </TabsTrigger>
+              );
+            })}
+          </TabsList>
+        </Tabs>
       </div>
 
       {/* ── Error Banner ── */}
-      {error && (
-        <div className="mx-5 mt-3 flex items-center gap-2 rounded-xl border border-red-500/25 bg-red-500/8 px-4 py-3 text-sm text-red-400">
-          ⚠️ {error}
-          <button onClick={() => setError(null)} className="ml-auto text-slate-500 hover:text-slate-200">✕</button>
+      {overviewError && (
+        <div className="mx-6 mt-4 flex items-center gap-2 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-xs text-red-400">
+          <span>⚠️ {(overviewError as Error)?.message || "Không thể tải dữ liệu chứng khoán."}</span>
         </div>
       )}
 
       {/* ── Tab Content ── */}
-      <div className="flex-1 overflow-y-auto px-5 py-5">
+      <div className="flex-1 overflow-y-auto px-6 py-6 pb-28">
         {activeTab === "overview" && (
-          <OverviewTab overview={overview} loading={loadingOverview} />
+          <OverviewTab overview={overview || null} loading={loadingOverview} />
         )}
         {activeTab === "trading" && (
-          <TradingTab data={trading} loading={loadingTab} symbol={symbol} />
+          <TradingTab data={trading || null} loading={loadingTrading} symbol={symbol} />
         )}
         {activeTab === "technicals" && (
-          <TechnicalsTab data={technicals} loading={loadingTab} />
+          <TechnicalsTab data={technicals || null} loading={loadingTechnicals} />
         )}
         {activeTab === "financials" && (
           <FinancialsTab
-            data={financials}
-            loading={loadingTab}
+            data={financials || null}
+            loading={loadingFinancials}
             symbol={symbol}
-            onChangeReport={(reportType, period) =>
-              getStockFinancials(symbol, reportType, period).then(setFinancials)
-            }
+            onChangeReport={handleReportChange}
           />
         )}
         {activeTab === "news" && (
-          <NewsTab data={news} loading={loadingTab} />
+          <NewsTab data={news || null} loading={loadingNews} />
         )}
       </div>
     </div>
   );
 }
+

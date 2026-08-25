@@ -1,6 +1,13 @@
 "use client";
 
 import { StockOverview } from "@/lib/stockApi";
+import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/ui/tooltip";
 
 function fmt(val: number | null | undefined, digits = 2): string {
   if (val == null || isNaN(val)) return "—";
@@ -15,6 +22,17 @@ function fmtMarketCap(val: number | null): string {
   return val.toLocaleString("vi-VN");
 }
 
+const METRIC_TIPS: Record<string, string> = {
+  "P/E": "Price to Earnings: Tỷ số giá trên lợi nhuận một cổ phiếu",
+  "P/B": "Price to Book: Tỷ số giá trên giá trị sổ sách",
+  "EPS": "Earnings Per Share: Lợi nhuận trên mỗi cổ phiếu",
+  "Vốn hóa": "Tổng giá trị thị trường của doanh nghiệp",
+  "Khối lượng": "Khối lượng cổ phiếu giao dịch trong phiên",
+  "52T Cao": "Mức giá cao nhất trong vòng 52 tuần qua",
+  "52T Thấp": "Mức giá thấp nhất trong vòng 52 tuần qua",
+  "Beta": "Hệ số đo lường mức độ biến động so với toàn thị trường",
+};
+
 export default function StockHeader({
   overview,
   loading,
@@ -23,19 +41,19 @@ export default function StockHeader({
   loading: boolean;
 }) {
   const isPositive = (overview?.price_change_pct ?? 0) >= 0;
-  const changeColor = isPositive ? "#10b981" : "#ef4444";
-  const changeBg = isPositive ? "rgba(16,185,129,0.08)" : "rgba(239,68,68,0.08)";
-  const changeBorder = isPositive ? "rgba(16,185,129,0.2)" : "rgba(239,68,68,0.2)";
 
   if (loading) {
     return (
-      <div className="shrink-0 border-b border-white/8 px-5 py-4">
-        <div className="flex items-center gap-4 animate-pulse">
-          <div className="h-10 w-20 rounded-xl bg-white/8" />
-          <div className="h-8 w-32 rounded-lg bg-white/6" />
-          <div className="ml-auto flex gap-3">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-10 w-20 rounded-xl bg-white/6" />
+      <div className="shrink-0 border-b border-white/8 px-6 py-4">
+        <div className="flex items-center gap-4">
+          <Skeleton className="h-11 w-11 rounded-2xl" />
+          <div className="space-y-2">
+            <Skeleton className="h-6 w-32 rounded-lg" />
+            <Skeleton className="h-4 w-48 rounded-lg" />
+          </div>
+          <div className="ml-auto hidden md:flex gap-2">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <Skeleton key={i} className="h-12 w-20 rounded-xl" />
             ))}
           </div>
         </div>
@@ -57,52 +75,46 @@ export default function StockHeader({
   ];
 
   return (
-    <div className="shrink-0 border-b border-white/8 bg-gradient-to-r from-[#0d0d16] to-[#0a0a0f] px-5 py-4">
+    <div className="shrink-0 border-b border-white/8 bg-gradient-to-r from-[#0d0d16] to-[#0a0a0f] px-6 py-4">
       <div className="flex flex-wrap items-start gap-4">
         {/* Symbol & Name */}
         <div className="flex items-center gap-3">
           <div
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-lg font-bold shadow-lg"
-            style={{
-              background: "linear-gradient(135deg, #8b5cf6 0%, #06b6d4 100%)",
-              boxShadow: "0 4px 20px rgba(139,92,246,0.35)",
-            }}
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-lg font-extrabold text-white shadow-lg bg-linear-to-br from-violet-600 to-cyan-500 shadow-violet-500/25"
           >
             {overview.symbol.slice(0, 2)}
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-xl font-extrabold text-white tracking-tight">
+              <span className="text-xl font-extrabold text-slate-50 tracking-tight">
                 {overview.symbol}
               </span>
               {overview.exchange && (
-                <span className="rounded-md border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-medium text-slate-400 uppercase">
+                <Badge variant="secondary" className="text-[10px] uppercase font-bold tracking-wider">
                   {overview.exchange}
-                </span>
+                </Badge>
               )}
             </div>
-            <div className="text-xs text-slate-500 mt-0.5 max-w-[200px] truncate">
+            <div className="text-xs text-slate-400 mt-0.5 max-w-[200px] truncate">
               {overview.company_name}
             </div>
             {overview.industry && (
-              <div className="text-[10px] text-[#8b5cf6]/70 mt-0.5">{overview.industry}</div>
+              <Badge variant="cyan" className="mt-1 text-[10px] font-medium py-0 h-4">
+                {overview.industry}
+              </Badge>
             )}
           </div>
         </div>
 
         {/* Price */}
         <div className="flex items-baseline gap-2">
-          <span className="text-3xl font-extrabold text-white tracking-tight" id="stock-price">
+          <span className="text-3xl font-extrabold text-slate-50 tracking-tight" id="stock-price">
             {fmt(overview.current_price, 0)}
           </span>
           {overview.price_change != null && (
-            <div
-              className="flex items-center gap-1 rounded-lg px-2.5 py-1 text-sm font-semibold"
-              style={{
-                color: changeColor,
-                background: changeBg,
-                border: `1px solid ${changeBorder}`,
-              }}
+            <Badge
+              variant={isPositive ? "success" : "destructive"}
+              className="text-xs font-bold px-2.5 py-1 gap-1"
               id="stock-change"
             >
               <span>{isPositive ? "▲" : "▼"}</span>
@@ -110,23 +122,31 @@ export default function StockHeader({
               {overview.price_change_pct != null && (
                 <span>({fmt(Math.abs(overview.price_change_pct), 2)}%)</span>
               )}
-            </div>
+            </Badge>
           )}
         </div>
 
-        {/* Metrics grid */}
+        {/* Metrics grid with Tooltips */}
         <div className="ml-auto flex flex-wrap gap-2">
           {metrics.map((m) => (
-            <div
-              key={m.label}
-              className="rounded-xl border border-white/8 bg-white/4 px-3 py-2 text-center min-w-[70px]"
-            >
-              <div className="text-[10px] text-slate-500 mb-0.5">{m.label}</div>
-              <div className="text-sm font-semibold text-slate-100">{m.value}</div>
-            </div>
+            <Tooltip key={m.label}>
+              <TooltipTrigger asChild>
+                <div
+                  className="rounded-xl border border-white/8 bg-white/4 px-3 py-1.5 text-center min-w-[70px] hover:border-violet-500/30 transition-colors cursor-help"
+                >
+                  <div className="text-[10px] text-slate-500 mb-0.5">{m.label}</div>
+                  <div className="text-xs font-bold text-slate-100">{m.value}</div>
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                <p className="font-semibold text-violet-300">{m.label}</p>
+                <p className="text-[11px] text-slate-300">{METRIC_TIPS[m.label] || m.label}</p>
+              </TooltipContent>
+            </Tooltip>
           ))}
         </div>
       </div>
     </div>
   );
 }
+
