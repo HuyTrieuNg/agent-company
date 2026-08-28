@@ -39,18 +39,18 @@ export default function ThemeToggle({ collapsed = false }: ThemeToggleProps) {
           onClick={() => setTheme(isLight ? "dark" : "light")}
           aria-label={tooltip}
           className={cn(
-            "h-9 items-center gap-0 overflow-hidden rounded-xl border border-white/10 bg-white/4 text-xs font-medium text-slate-300 hover:border-violet-500/50 hover:bg-violet-600/10 hover:text-slate-100 transition-all",
+            "items-center gap-0 overflow-hidden rounded-lg border border-(--border-default) bg-(--bg-surface) text-xs font-medium text-(--text-secondary) hover:border-(--border-strong) hover:bg-(--bg-subtle) hover:text-(--text-primary) transition-colors",
             collapsed
-              ? "w-full justify-center px-0"
-              : "flex w-full justify-center px-2 md:justify-start md:px-3"
+              ? "h-11 w-full justify-center px-0"
+              : "h-9 flex w-full justify-center px-2 md:justify-start md:px-3"
           )}
         >
           {!mounted ? (
             <Sun className="h-3.5 w-3.5 shrink-0 opacity-0" aria-hidden="true" />
           ) : isLight ? (
-            <Moon className="h-3.5 w-3.5 text-violet-400 shrink-0" />
+            <Moon className="h-3.5 w-3.5 text-(--action-primary) shrink-0" />
           ) : (
-            <Sun className="h-3.5 w-3.5 text-violet-400 shrink-0" />
+            <Sun className="h-3.5 w-3.5 text-(--action-primary) shrink-0" />
           )}
           <span
             className={cn(

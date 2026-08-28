@@ -89,13 +89,13 @@ export default function DateRangeFilter({
         <Button
           variant="outline"
           size="sm"
-          className={`h-8 gap-2 border-white/10 text-xs font-medium transition-all ${
+          className={`h-8 gap-2 border-(--border-default) text-xs font-medium transition-colors ${
             hasFilter
-              ? "border-violet-500/50 bg-violet-600/15 text-violet-200 hover:bg-violet-600/25"
-              : "bg-white/5 text-slate-300 hover:bg-white/10 hover:text-slate-100"
+              ? "border-(--border-strong) bg-(--bg-selected) text-(--text-primary)"
+              : "bg-(--bg-surface) text-(--text-secondary) hover:bg-(--bg-subtle) hover:text-(--text-primary)"
           }`}
         >
-          <CalendarIcon className={`h-3.5 w-3.5 ${hasFilter ? "text-violet-400" : "text-slate-400"}`} />
+          <CalendarIcon className={`h-3.5 w-3.5 ${hasFilter ? "text-(--action-primary)" : "text-(--text-tertiary)"}`} />
           <span>
             {dateFrom && dateTo
               ? `${formatDateDisplay(dateFrom)} - ${formatDateDisplay(dateTo)}`
@@ -109,7 +109,7 @@ export default function DateRangeFilter({
           {hasFilter && (
             <span
               onClick={handleClear}
-              className="ml-1 rounded-full p-0.5 hover:bg-white/20 text-slate-400 hover:text-white cursor-pointer"
+              className="ml-1 rounded p-0.5 text-(--text-tertiary) hover:text-(--status-negative) cursor-pointer"
               title="Xóa lọc ngày"
             >
               <X className="h-3 w-3" />
@@ -118,15 +118,15 @@ export default function DateRangeFilter({
         </Button>
       </PopoverTrigger>
 
-      <PopoverContent align="start" className="w-80 p-4 bg-[#0d0d16] border-white/15 shadow-2xl rounded-2xl">
+      <PopoverContent align="start" className="w-80 p-4 bg-(--bg-surface) border-(--border-default) shadow-(--shadow-overlay) rounded-lg">
         <div className="space-y-4">
-          <div className="flex items-center justify-between border-b border-white/10 pb-2.5">
+          <div className="flex items-center justify-between border-b border-(--border-default) pb-2.5">
             <div className="flex items-center gap-2">
-              <CalendarIcon className="h-4 w-4 text-violet-400" />
-              <span className="text-xs font-bold text-slate-200">Chọn Khoảng Thời Gian</span>
+              <CalendarIcon className="h-4 w-4 text-(--action-primary)" />
+              <span className="text-xs font-bold text-(--text-primary)">Chọn Khoảng Thời Gian</span>
             </div>
             {hasFilter && (
-              <Badge variant="secondary" className="text-[10px] bg-violet-500/20 text-violet-300">
+              <Badge variant="secondary" className="text-[10px] bg-(--bg-selected) text-(--action-primary)">
                 Đang kích hoạt
               </Badge>
             )}
@@ -134,13 +134,13 @@ export default function DateRangeFilter({
 
           {/* Quick Presets */}
           <div>
-            <span className="text-[11px] font-semibold text-slate-400 mb-2 block">Chọn nhanh</span>
+            <span className="text-[11px] font-semibold text-(--text-secondary) mb-2 block">Chọn nhanh</span>
             <div className="grid grid-cols-3 gap-1.5">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setPreset(0)}
-                className="h-7 text-[11px] bg-white/5 hover:bg-white/10 text-slate-300 rounded-lg"
+                className="h-7 text-[11px] bg-(--bg-subtle) hover:bg-(--bg-selected) hover:text-(--text-primary) text-(--text-secondary) rounded-md"
               >
                 Hôm nay
               </Button>
@@ -148,7 +148,7 @@ export default function DateRangeFilter({
                 variant="ghost"
                 size="sm"
                 onClick={() => setPreset(7)}
-                className="h-7 text-[11px] bg-white/5 hover:bg-white/10 text-slate-300 rounded-lg"
+                className="h-7 text-[11px] bg-(--bg-subtle) hover:bg-(--bg-selected) hover:text-(--text-primary) text-(--text-secondary) rounded-md"
               >
                 7 ngày qua
               </Button>
@@ -156,7 +156,7 @@ export default function DateRangeFilter({
                 variant="ghost"
                 size="sm"
                 onClick={() => setPreset(30)}
-                className="h-7 text-[11px] bg-white/5 hover:bg-white/10 text-slate-300 rounded-lg"
+                className="h-7 text-[11px] bg-(--bg-subtle) hover:bg-(--bg-selected) hover:text-(--text-primary) text-(--text-secondary) rounded-md"
               >
                 30 ngày qua
               </Button>
@@ -164,7 +164,7 @@ export default function DateRangeFilter({
                 variant="ghost"
                 size="sm"
                 onClick={setThisMonth}
-                className="h-7 text-[11px] bg-white/5 hover:bg-white/10 text-slate-300 rounded-lg"
+                className="h-7 text-[11px] bg-(--bg-subtle) hover:bg-(--bg-selected) hover:text-(--text-primary) text-(--text-secondary) rounded-md"
               >
                 Tháng này
               </Button>
@@ -172,7 +172,7 @@ export default function DateRangeFilter({
                 variant="ghost"
                 size="sm"
                 onClick={() => setPreset(90)}
-                className="h-7 text-[11px] bg-white/5 hover:bg-white/10 text-slate-300 rounded-lg"
+                className="h-7 text-[11px] bg-(--bg-subtle) hover:bg-(--bg-selected) hover:text-(--text-primary) text-(--text-secondary) rounded-md"
               >
                 3 tháng qua
               </Button>
@@ -180,7 +180,7 @@ export default function DateRangeFilter({
                 variant="ghost"
                 size="sm"
                 onClick={handleClear}
-                className="h-7 text-[11px] bg-white/5 hover:bg-red-500/20 hover:text-red-300 text-slate-400 rounded-lg"
+                className="h-7 text-[11px] bg-(--bg-subtle) hover:bg-[color-mix(in_srgb,var(--status-negative)_12%,transparent)] hover:text-(--status-negative) text-(--text-tertiary) rounded-md"
               >
                 Tất cả
               </Button>
@@ -189,36 +189,36 @@ export default function DateRangeFilter({
 
           {/* Custom Date Inputs */}
           <div className="space-y-2.5 pt-1">
-            <span className="text-[11px] font-semibold text-slate-400 block">Tùy chỉnh ngày</span>
+            <span className="text-[11px] font-semibold text-(--text-secondary) block">Tùy chỉnh ngày</span>
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="text-[10px] text-slate-500 mb-1 block">Từ ngày</label>
+                <label className="text-[10px] text-(--text-tertiary) mb-1 block">Từ ngày</label>
                 <Input
                   type="date"
                   value={tempFrom}
                   onChange={(e) => setTempFrom(e.target.value)}
-                  className="h-8 text-xs bg-white/5 border-white/10 rounded-xl"
+                  className="h-8 text-xs"
                 />
               </div>
               <div>
-                <label className="text-[10px] text-slate-500 mb-1 block">Đến ngày</label>
+                <label className="text-[10px] text-(--text-tertiary) mb-1 block">Đến ngày</label>
                 <Input
                   type="date"
                   value={tempTo}
                   onChange={(e) => setTempTo(e.target.value)}
-                  className="h-8 text-xs bg-white/5 border-white/10 rounded-xl"
+                  className="h-8 text-xs"
                 />
               </div>
             </div>
           </div>
 
           {/* Actions */}
-          <div className="flex items-center justify-between border-t border-white/10 pt-3">
+          <div className="flex items-center justify-between border-t border-(--border-default) pt-3">
             <Button
               variant="ghost"
               size="sm"
               onClick={handleClear}
-              className="h-7 text-xs text-slate-400 hover:text-slate-200"
+              className="h-7 text-xs text-(--text-secondary) hover:text-(--text-primary)"
             >
               Đặt lại
             </Button>
@@ -226,7 +226,7 @@ export default function DateRangeFilter({
               variant="default"
               size="sm"
               onClick={handleApply}
-              className="h-7 gap-1 bg-violet-600 hover:bg-violet-700 text-white text-xs font-semibold rounded-lg shadow-md shadow-violet-500/20"
+              className="h-7 gap-1 text-xs font-semibold rounded-md"
             >
               <Check className="h-3 w-3" />
               <span>Áp dụng</span>

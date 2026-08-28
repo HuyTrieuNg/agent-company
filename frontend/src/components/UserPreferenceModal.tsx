@@ -77,26 +77,26 @@ export default function UserPreferenceModal({ isOpen, onClose }: Props) {
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-md bg-[#0d0d16] border-white/10 p-6 text-slate-100">
-        <DialogHeader className="border-b border-white/10 pb-4">
-          <DialogTitle className="text-base font-bold text-slate-50 flex items-center gap-2">
-            <SlidersHorizontal className="h-4 w-4 text-violet-400" />
+      <DialogContent className="max-w-md bg-(--bg-surface) border-(--border-default) p-6 text-(--text-primary)">
+        <DialogHeader className="border-b border-(--border-default) pb-4">
+          <DialogTitle className="text-base font-bold text-(--text-primary) flex items-center gap-2">
+            <SlidersHorizontal className="h-4 w-4 text-(--action-primary)" />
             Cài đặt User Context & Persona
           </DialogTitle>
-          <DialogDescription className="text-xs text-slate-400">
+          <DialogDescription className="text-xs text-(--text-secondary)">
             Tùy chỉnh thông tin và phong cách phản hồi cho Chatbot AI
           </DialogDescription>
         </DialogHeader>
 
         {loading ? (
-          <div className="flex py-12 justify-center text-slate-400">
-            <span className="h-6 w-6 animate-spin rounded-full border-2 border-violet-500/20 border-t-violet-500" />
+          <div className="flex py-12 justify-center text-(--text-tertiary)">
+            <span className="h-6 w-6 animate-spin rounded-full border-2 border-(--border-default) border-t-(--action-primary)" />
           </div>
         ) : (
           <form onSubmit={handleSave} className="flex flex-col gap-4 py-2">
             {/* Role / Title */}
             <div>
-              <label className="mb-1.5 block text-xs font-semibold text-slate-300">
+              <label className="mb-1.5 block text-xs font-semibold text-(--text-primary)">
                 Danh xưng / Vai trò của bạn
               </label>
               <Input
@@ -104,13 +104,13 @@ export default function UserPreferenceModal({ isOpen, onClose }: Props) {
                 placeholder="VD: Nhà đầu tư cá nhân, Phân tích viên, Sinh viên..."
                 value={pref.role_title}
                 onChange={(e) => setPref({ ...pref, role_title: e.target.value })}
-                className="bg-white/5 border-white/10 text-xs"
+                className="text-xs"
               />
             </div>
 
             {/* Interested Topics */}
             <div>
-              <label className="mb-1.5 block text-xs font-semibold text-slate-300">
+              <label className="mb-1.5 block text-xs font-semibold text-(--text-primary)">
                 Lĩnh vực & Mã quan tâm hàng đầu
               </label>
               <Input
@@ -118,13 +118,13 @@ export default function UserPreferenceModal({ isOpen, onClose }: Props) {
                 placeholder="VD: Cổ phiếu VNM, HPG, Vàng SJC, Tỷ giá USD..."
                 value={pref.interested_topics}
                 onChange={(e) => setPref({ ...pref, interested_topics: e.target.value })}
-                className="bg-white/5 border-white/10 text-xs"
+                className="text-xs"
               />
             </div>
 
             {/* Response Style */}
             <div>
-              <label className="mb-1.5 block text-xs font-semibold text-slate-300">
+              <label className="mb-1.5 block text-xs font-semibold text-(--text-primary)">
                 Phong cách phản hồi
               </label>
               <div className="grid grid-cols-3 gap-2">
@@ -139,11 +139,7 @@ export default function UserPreferenceModal({ isOpen, onClose }: Props) {
                     variant={pref.response_style === item.id ? "default" : "outline"}
                     size="sm"
                     onClick={() => setPref({ ...pref, response_style: item.id })}
-                    className={`rounded-xl text-xs font-semibold ${
-                      pref.response_style === item.id
-                        ? "bg-violet-600/20 text-violet-300 border-violet-500 shadow-xs"
-                        : "border-white/10 bg-white/5 text-slate-400 hover:bg-white/10 hover:text-slate-200"
-                    }`}
+                    className="rounded-lg text-xs font-semibold"
                   >
                     {item.label}
                   </Button>
@@ -153,23 +149,23 @@ export default function UserPreferenceModal({ isOpen, onClose }: Props) {
 
             {/* Custom Instructions */}
             <div>
-              <label className="mb-1.5 block text-xs font-semibold text-slate-300">
+              <label className="mb-1.5 block text-xs font-semibold text-(--text-primary)">
                 Chỉ dẫn đặc biệt cho AI
               </label>
               <textarea
                 rows={2}
-                className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-100 placeholder:text-slate-500 focus:border-violet-500 focus:outline-none focus:ring-1 focus:ring-violet-500 resize-none transition-colors"
+                className="w-full rounded-lg border border-(--border-default) bg-(--bg-surface) px-3 py-2 text-xs text-(--text-primary) placeholder:text-(--text-tertiary) focus:border-(--border-strong) focus:outline-none focus-visible:ring-2 focus-visible:ring-(--focus-ring) resize-none transition-colors"
                 placeholder="VD: Trả lời bằng tiếng Việt, trích dẫn nguồn cụ thể..."
                 value={pref.custom_instructions}
                 onChange={(e) => setPref({ ...pref, custom_instructions: e.target.value })}
               />
             </div>
 
-            <DialogFooter className="pt-2 border-t border-white/10 gap-2">
+            <DialogFooter className="pt-2 border-t border-(--border-default) gap-2">
               <Button type="button" variant="outline" size="sm" onClick={onClose}>
                 Hủy
               </Button>
-              <Button type="submit" variant="gradient" size="sm" disabled={saving}>
+              <Button type="submit" variant="default" size="sm" disabled={saving}>
                 {saving ? "Đang lưu..." : "Lưu cài đặt"}
               </Button>
             </DialogFooter>

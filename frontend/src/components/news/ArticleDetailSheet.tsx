@@ -55,33 +55,33 @@ export default function ArticleDetailSheet() {
 
   return (
     <Sheet open={isArticleSheetOpen} onOpenChange={(open) => !open && closeArticleSheet()}>
-      <SheetContent side="right" className="flex flex-col w-full sm:max-w-2xl bg-[#0c0c14] border-white/10 p-0 text-slate-100">
+      <SheetContent side="right" className="flex flex-col w-full sm:max-w-2xl bg-(--bg-surface) border-(--border-default) p-0 text-(--text-primary)">
         {/* Header */}
-        <div className="border-b border-white/10 p-6 pb-4">
+        <div className="border-b border-(--border-default) p-6 pb-4">
           <div className="flex items-center gap-2 mb-3">
-            <Badge variant="default" className="bg-violet-600/20 text-violet-300 border-violet-500/30 uppercase tracking-wider">
+            <Badge variant="secondary" className="bg-(--bg-subtle) text-(--text-primary) uppercase tracking-wider font-semibold">
               {article.site || "Tin tức"}
             </Badge>
             {article.category && (
-              <Badge variant="secondary" className="text-slate-400">
+              <Badge variant="secondary" className="text-(--text-secondary) bg-(--bg-subtle)">
                 {article.category}
               </Badge>
             )}
             {article.published_at && (
-              <span className="flex items-center gap-1 text-[11px] text-slate-400 ml-auto">
+              <span className="flex items-center gap-1 text-[11px] text-(--text-tertiary) ml-auto">
                 <Calendar className="h-3 w-3" />
                 {article.published_at}
               </span>
             )}
           </div>
 
-          <SheetTitle className="text-lg font-bold leading-snug text-slate-50">
+          <SheetTitle className="text-lg font-bold leading-snug text-(--text-primary)">
             {article.title}
           </SheetTitle>
 
           {article.author && (
-            <div className="flex items-center gap-1.5 text-xs text-slate-400 mt-2">
-              <User className="h-3.5 w-3.5 text-slate-500" />
+            <div className="flex items-center gap-1.5 text-xs text-(--text-tertiary) mt-2">
+              <User className="h-3.5 w-3.5" />
               <span>Tác giả: {article.author}</span>
             </div>
           )}
@@ -90,23 +90,23 @@ export default function ArticleDetailSheet() {
         {/* Content Body */}
         <ScrollArea className="flex-1 px-6 py-4">
           {isLoading && !fullContent ? (
-            <div className="flex flex-col items-center justify-center py-20 text-slate-400 gap-3">
-              <span className="h-6 w-6 animate-spin rounded-full border-2 border-violet-500/20 border-t-violet-500" />
+            <div className="flex flex-col items-center justify-center py-20 text-(--text-tertiary) gap-3">
+              <span className="h-6 w-6 animate-spin rounded-full border-2 border-(--border-default) border-t-(--action-primary)" />
               <p className="text-xs">Đang tải toàn bộ nội dung từ Vector DB...</p>
             </div>
           ) : (
-            <div className="space-y-4 text-xs md:text-sm text-slate-300 leading-relaxed">
+            <div className="space-y-4 text-xs md:text-sm text-(--text-primary) leading-relaxed">
               {article.sapo && (
-                <div className="rounded-xl border border-violet-500/20 bg-violet-950/20 p-3.5 font-medium text-slate-200 leading-relaxed italic">
+                <div className="rounded-lg border border-(--border-default) bg-(--bg-subtle) p-3.5 font-medium text-(--text-secondary) leading-relaxed italic">
                   {article.sapo}
                 </div>
               )}
 
-              <div className="prose prose-invert max-w-none text-slate-300 leading-relaxed whitespace-pre-line">
+              <div className="max-w-none text-(--text-primary) leading-relaxed whitespace-pre-line">
                 {fullContent ? (
                   <Markdown content={fullContent} />
                 ) : (
-                  <p>{article.sapo || "Không có nội dung chi tiết."}</p>
+                  <p className="text-(--text-secondary)">{article.sapo || "Không có nội dung chi tiết."}</p>
                 )}
               </div>
             </div>
@@ -114,16 +114,16 @@ export default function ArticleDetailSheet() {
         </ScrollArea>
 
         {/* Footer Actions */}
-        <div className="border-t border-white/10 bg-[#08080e] p-4 px-6 flex flex-wrap items-center justify-between gap-3">
+        <div className="border-t border-(--border-default) bg-(--bg-subtle) p-4 px-6 flex flex-wrap items-center justify-between gap-3">
           {article.url ? (
             <a
               href={article.url}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-slate-400 hover:text-white transition-colors"
+              className="inline-flex items-center gap-1.5 text-xs font-medium text-(--text-secondary) hover:text-(--action-primary) transition-colors"
             >
               <ExternalLink className="h-3.5 w-3.5" />
-              <span>Bài gốc</span>
+              <span>Mở bài gốc</span>
             </a>
           ) : (
             <div />
@@ -131,10 +131,10 @@ export default function ArticleDetailSheet() {
 
           <div className="flex items-center gap-2">
             <Button
-              variant={pinned ? "destructive" : "default"}
+              variant={pinned ? "destructive" : "outline"}
               size="sm"
               onClick={handleTogglePin}
-              className="gap-1.5"
+              className="gap-1.5 text-xs"
             >
               {pinned ? (
                 <>
@@ -144,16 +144,16 @@ export default function ArticleDetailSheet() {
               ) : (
                 <>
                   <Bookmark className="h-3.5 w-3.5" />
-                  <span>+ Ghim vào Context</span>
+                  <span>+ Thêm vào ngữ cảnh AI</span>
                 </>
               )}
             </Button>
 
             <Button
-              variant="gradient"
+              variant="default"
               size="sm"
               onClick={handleChatAboutThis}
-              className="gap-1.5"
+              className="gap-1.5 text-xs font-semibold"
             >
               <MessageSquare className="h-3.5 w-3.5" />
               <span>Hỏi Chatbot</span>

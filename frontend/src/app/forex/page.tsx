@@ -9,28 +9,11 @@ import MarketPage, {
   ChangeBadge,
   type MarketColumn,
   type MarketMetric,
-  type MarketTheme,
 } from "@/components/common/MarketPage";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { DollarSign } from "lucide-react";
-
-const THEME: MarketTheme = {
-  iconGradient: "bg-linear-to-br from-cyan-500 to-blue-600 text-white shadow-cyan-500/25",
-  titleGradient: "from-cyan-200 via-cyan-400 to-blue-400",
-  liveBadgeClass: "border-cyan-500/30 bg-cyan-500/10 text-cyan-300",
-  liveDotClass: "bg-cyan-400",
-  activePillClass: "bg-linear-to-r from-cyan-500 to-blue-600 text-slate-950 shadow-md shadow-cyan-500/25",
-  selectedRowClass: "bg-cyan-500/10",
-  newsHeadingIconClass: "text-cyan-400",
-  newsSourceBadgeClass: "bg-cyan-500/15 text-cyan-300",
-  newsTitleHoverClass: "group-hover:text-cyan-300",
-  sourceLinkClass: "text-cyan-400 hover:text-cyan-300",
-  pinBtnActiveClass: "bg-cyan-600 text-white shadow-md shadow-cyan-500/25 hover:bg-cyan-700",
-  pinBtnHoverClass: "hover:bg-cyan-600/20 hover:text-cyan-300",
-  pinnedCardClass: "border-cyan-500/50 bg-linear-to-b from-cyan-950/20 to-[#0d0d16] shadow-md shadow-cyan-500/10",
-};
 
 function formatRate(val: number | undefined | null): string {
   if (val == null || isNaN(val)) return "—";
@@ -59,7 +42,6 @@ function buildMetrics(item: ForexItem): MarketMetric[] {
       value: formatRate(item.cash_buy),
       sub: `VND / ${item.code}`,
       tooltip: "Tỷ giá ngân hàng mua vào bằng tiền mặt trực tiếp",
-      tone: "emerald",
     },
     {
       key: "transfer_buy",
@@ -67,7 +49,6 @@ function buildMetrics(item: ForexItem): MarketMetric[] {
       value: formatRate(item.transfer_buy),
       sub: `VND / ${item.code}`,
       tooltip: "Tỷ giá mua vào áp dụng giao dịch chuyển khoản",
-      tone: "cyan",
     },
     {
       key: "sell",
@@ -75,16 +56,14 @@ function buildMetrics(item: ForexItem): MarketMetric[] {
       value: formatRate(item.sell),
       sub: `VND / ${item.code}`,
       tooltip: "Tỷ giá ngân hàng bán ra cho khách hàng",
-      tone: "red",
     },
     {
       key: "change",
       label: "Biến Động 24H",
       value: `${up ? "+" : ""}${item.change_percent}%`,
       sub: `Chênh lệch: ${formatRate(item.spread)} đ`,
-      tone: "neutral",
       trend: up ? "up" : "down",
-      valueClass: up ? "text-emerald-400" : "text-red-400",
+      valueClass: up ? "text-(--status-positive)" : "text-(--status-negative)",
     },
   ];
 }
@@ -94,14 +73,16 @@ const COLUMNS: MarketColumn<ForexItem>[] = [
     key: "name",
     header: "Tên Ngoại Tệ",
     align: "left",
-    render: (item) => <span className="font-medium text-slate-50">{item.name}</span>,
+    render: (item) => (
+      <span className="font-medium text-(--text-primary)">{item.name}</span>
+    ),
   },
   {
     key: "code",
     header: "Mã",
     align: "center",
     render: (item) => (
-      <Badge variant="cyan" className="font-mono text-[10px]">
+      <Badge variant="secondary" className="font-mono text-[11px]">
         {item.code}
       </Badge>
     ),
@@ -111,7 +92,9 @@ const COLUMNS: MarketColumn<ForexItem>[] = [
     header: "Mua Tiền Mặt",
     align: "right",
     render: (item) => (
-      <span className="font-semibold text-emerald-400">{formatRate(item.cash_buy)}</span>
+      <span className="font-medium tabular-nums text-(--text-primary)">
+        {formatRate(item.cash_buy)}
+      </span>
     ),
   },
   {
@@ -120,7 +103,9 @@ const COLUMNS: MarketColumn<ForexItem>[] = [
     align: "right",
     className: "hidden sm:table-cell",
     render: (item) => (
-      <span className="font-semibold text-cyan-400">{formatRate(item.transfer_buy)}</span>
+      <span className="tabular-nums text-(--text-secondary)">
+        {formatRate(item.transfer_buy)}
+      </span>
     ),
   },
   {
@@ -128,7 +113,9 @@ const COLUMNS: MarketColumn<ForexItem>[] = [
     header: "Bán Ra",
     align: "right",
     render: (item) => (
-      <span className="font-semibold text-red-400">{formatRate(item.sell)}</span>
+      <span className="font-medium tabular-nums text-(--text-primary)">
+        {formatRate(item.sell)}
+      </span>
     ),
   },
   {
@@ -136,7 +123,11 @@ const COLUMNS: MarketColumn<ForexItem>[] = [
     header: "Spread",
     align: "right",
     className: "hidden lg:table-cell",
-    render: (item) => <span className="text-slate-400">{formatRate(item.spread)}</span>,
+    render: (item) => (
+      <span className="tabular-nums text-(--text-secondary)">
+        {formatRate(item.spread)}
+      </span>
+    ),
   },
   {
     key: "change",
@@ -160,7 +151,6 @@ export default function ForexPage() {
 
   return (
     <MarketPage<ForexItem>
-      theme={THEME}
       icon={DollarSign}
       title="Tỷ Giá Ngoại Tệ & Ngoại Hối"
       subtitle="Tra cứu tỷ giá niêm yết thương mại: USD, EUR, JPY, GBP, AUD, CAD, SGD, CNY"
@@ -174,7 +164,7 @@ export default function ForexPage() {
       onSelectCode={setSelectedPair}
       renderPill={(item, selected) => (
         <>
-          <span className="font-mono text-[10px] opacity-75">{item.symbol}</span>
+          <span className="font-mono text-xs text-(--text-tertiary)">{item.symbol}</span>
           <span>{item.code}</span>
           <ChangeBadge percent={item.change_percent} selected={selected} />
         </>
@@ -192,13 +182,13 @@ export default function ForexPage() {
       }
       chartSlot={
         historyLoading ? (
-          <Skeleton className="h-72 rounded-2xl bg-white/4" />
+          <Skeleton className="h-72 rounded-xl" />
         ) : history?.data && history.data.length > 0 ? (
           <InteractivePriceChart
             data={history.data}
             series={[
-              { key: "buy", label: "Tỷ Giá Mua CK", color: "#06b6d4" },
-              { key: "sell", label: "Tỷ Giá Bán", color: "#ef4444" },
+              { key: "buy", label: "Tỷ Giá Mua CK", semanticColor: "primary" },
+              { key: "sell", label: "Tỷ Giá Bán", semanticColor: "negative" },
             ]}
             timeframe={timeframe}
             onTimeframeChange={setTimeframe}
@@ -207,7 +197,7 @@ export default function ForexPage() {
             height={300}
           />
         ) : (
-          <Card className="flex h-72 items-center justify-center rounded-2xl border-white/8 bg-[#0c0c14] text-xs text-slate-500">
+          <Card className="flex h-72 items-center justify-center rounded-xl border border-(--border-default) bg-(--bg-surface) text-xs text-(--text-tertiary)">
             Không tìm thấy dữ liệu lịch sử tỷ giá
           </Card>
         )

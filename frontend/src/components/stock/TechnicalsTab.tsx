@@ -10,7 +10,8 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from "@/components/ui/tooltip";
-import { Info } from "lucide-react";
+import { Info, LineChart } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 function fmt(val: number | null | undefined, digits = 2): string {
   if (val == null || isNaN(Number(val))) return "—";
@@ -18,37 +19,42 @@ function fmt(val: number | null | undefined, digits = 2): string {
 }
 
 function RSIGauge({ value }: { value: number | null }) {
-  if (value == null) return <span className="text-slate-500">—</span>;
+  if (value == null) return <span className="text-(--text-tertiary)">—</span>;
   const pct = Math.min(Math.max(value, 0), 100);
   let badgeVariant: "destructive" | "success" | "secondary" = "secondary";
   let label = "Trung lập";
   if (value >= 70) {
     badgeVariant = "destructive";
-    label = "Quá mua (Overbought)";
+    label = "Quá mua (≥70)";
   }
   if (value <= 30) {
     badgeVariant = "success";
-    label = "Quá bán (Oversold)";
+    label = "Quá bán (≤30)";
   }
 
   return (
     <div className="flex flex-col gap-2.5">
-      <div className="flex items-center justify-between text-xs text-slate-400">
-        <span>0</span>
-        <Badge variant={badgeVariant} className="text-xs font-bold px-2 py-0.5">
+      <div className="flex items-center justify-between text-xs text-(--text-secondary)">
+        <span className="tabular-nums">0</span>
+        <Badge variant={badgeVariant} className="text-xs font-semibold px-2 py-0.5 tabular-nums">
           {fmt(value)} — {label}
         </Badge>
-        <span>100</span>
+        <span className="tabular-nums">100</span>
       </div>
-      <div className="h-2.5 w-full rounded-full bg-white/8 overflow-hidden">
+      <div className="h-2 w-full rounded-full bg-(--bg-subtle) border border-(--border-default) overflow-hidden">
         <div
-          className={`h-full rounded-full transition-all duration-700 ${
-            value >= 70 ? "bg-red-500" : value <= 30 ? "bg-emerald-500" : "bg-amber-500"
-          }`}
+          className={cn(
+            "h-full rounded-full transition-all duration-500",
+            value >= 70
+              ? "bg-(--status-negative)"
+              : value <= 30
+                ? "bg-(--status-positive)"
+                : "bg-(--action-primary)"
+          )}
           style={{ width: `${pct}%` }}
         />
       </div>
-      <div className="flex justify-between text-[10px] text-slate-500">
+      <div className="flex justify-between text-[10px] text-(--text-tertiary)">
         <span>Vùng quá bán (≤ 30)</span>
         <span>Vùng quá mua (≥ 70)</span>
       </div>
@@ -74,24 +80,26 @@ function MACDBar({
         {
           label: "Histogram",
           value: histogram,
-          color: isPositive ? "#10b981" : "#ef4444",
+          colorClass: isPositive ? "text-(--status-positive)" : "text-(--status-negative)",
           tip: "Hiệu số giữa MACD và Signal (phân kỳ dương/âm)",
         },
       ].map((m) => (
         <Tooltip key={m.label}>
           <TooltipTrigger asChild>
-            <Card className="p-3 border-white/8 bg-white/4 text-center cursor-help hover:border-violet-500/30 transition-colors">
-              <div className="text-[11px] text-slate-400 mb-1">{m.label}</div>
+            <Card className="p-3 border border-(--border-default) bg-(--bg-subtle) text-center cursor-help hover:border-(--border-strong) transition-colors rounded-lg shadow-none">
+              <div className="text-[11px] font-medium text-(--text-secondary) mb-1">{m.label}</div>
               <div
-                className="text-sm md:text-base font-bold"
-                style={m.color ? { color: m.color } : { color: "#e2e8f0" }}
+                className={cn(
+                  "text-sm md:text-base font-bold tabular-nums text-(--text-primary)",
+                  m.colorClass
+                )}
               >
                 {fmt(m.value, 4)}
               </div>
             </Card>
           </TooltipTrigger>
           <TooltipContent side="bottom">
-            <p className="text-[11px] text-slate-200">{m.tip}</p>
+            <p className="text-xs text-(--text-secondary)">{m.tip}</p>
           </TooltipContent>
         </Tooltip>
       ))}
@@ -109,10 +117,10 @@ export default function TechnicalsTab({
   if (loading) {
     return (
       <div className="space-y-4">
-        <Skeleton className="h-64 w-full rounded-2xl" />
+        <Skeleton className="h-64 w-full rounded-xl" />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {[1, 2, 3, 4].map((i) => (
-            <Skeleton key={i} className="h-40 rounded-2xl" />
+            <Skeleton key={i} className="h-40 rounded-xl" />
           ))}
         </div>
       </div>
@@ -121,10 +129,10 @@ export default function TechnicalsTab({
 
   if (!data) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-slate-500">
-        <span className="text-4xl mb-3">🔬</span>
-        <p>Không có dữ liệu kỹ thuật</p>
-      </div>
+      <Card className="flex flex-col items-center justify-center py-20 border border-(--border-default) bg-(--bg-surface) rounded-xl text-(--text-tertiary)">
+        <LineChart className="h-8 w-8 mb-2 text-(--text-tertiary)" aria-hidden="true" />
+        <p className="text-xs">Không có dữ liệu kỹ thuật</p>
+      </Card>
     );
   }
 
@@ -143,7 +151,7 @@ export default function TechnicalsTab({
       {/* Price chart */}
       <InteractivePriceChart
         data={price_history.map((d) => ({ date: d.time, close: d.close }))}
-        series={[{ key: "close", label: "Giá đóng cửa", color: "#8b5cf6" }]}
+        series={[{ key: "close", label: "Giá đóng cửa", color: "", semanticColor: "primary" }]}
         title={`Biểu đồ kỹ thuật (${data.timeframe} - ${data.data_points} phiên)`}
         unit="đ"
         height={240}
@@ -152,17 +160,17 @@ export default function TechnicalsTab({
       {/* Grid of technical indicators */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Moving Averages */}
-        <Card className="border-white/8 bg-white/4 p-4">
+        <Card className="border border-(--border-default) bg-(--bg-surface) p-4 rounded-xl shadow-xs">
           <CardHeader className="p-0 pb-3 flex flex-row items-center justify-between">
-            <CardTitle className="text-sm font-semibold text-slate-300">
+            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-(--text-secondary)">
               Đường trung bình động (MA)
             </CardTitle>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Info className="h-3.5 w-3.5 text-slate-500 cursor-help" />
+                <Info className="h-3.5 w-3.5 text-(--text-tertiary) hover:text-(--text-secondary) cursor-help" />
               </TooltipTrigger>
               <TooltipContent>
-                <p className="text-[11px]">Simple Moving Averages đo xu hướng giá bình quân</p>
+                <p className="text-xs">Simple Moving Averages đo xu hướng giá bình quân</p>
               </TooltipContent>
             </Tooltip>
           </CardHeader>
@@ -173,10 +181,12 @@ export default function TechnicalsTab({
                 return (
                   <Card
                     key={ma.label}
-                    className="p-3 border-white/8 bg-white/4 text-center"
+                    className="p-3 border border-(--border-default) bg-(--bg-subtle) text-center rounded-lg shadow-none"
                   >
-                    <div className="text-xs text-slate-400 mb-1">{ma.label}</div>
-                    <div className="text-sm md:text-base font-bold text-slate-100">{fmt(ma.value, 0)}</div>
+                    <div className="text-xs font-medium text-(--text-secondary) mb-1">{ma.label}</div>
+                    <div className="text-sm md:text-base font-bold tabular-nums text-(--text-primary)">
+                      {fmt(ma.value, 0)}
+                    </div>
                     {ma.value != null && (
                       <div className="mt-1.5">
                         <Badge
@@ -195,17 +205,17 @@ export default function TechnicalsTab({
         </Card>
 
         {/* RSI */}
-        <Card className="border-white/8 bg-white/4 p-4">
+        <Card className="border border-(--border-default) bg-(--bg-surface) p-4 rounded-xl shadow-xs">
           <CardHeader className="p-0 pb-3 flex flex-row items-center justify-between">
-            <CardTitle className="text-sm font-semibold text-slate-300">
+            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-(--text-secondary)">
               Chỉ số RSI (14 phiên)
             </CardTitle>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Info className="h-3.5 w-3.5 text-slate-500 cursor-help" />
+                <Info className="h-3.5 w-3.5 text-(--text-tertiary) hover:text-(--text-secondary) cursor-help" />
               </TooltipTrigger>
               <TooltipContent>
-                <p className="text-[11px]">Chỉ số sức mạnh tương đối (Relative Strength Index)</p>
+                <p className="text-xs">Chỉ số sức mạnh tương đối (Relative Strength Index)</p>
               </TooltipContent>
             </Tooltip>
           </CardHeader>
@@ -215,17 +225,17 @@ export default function TechnicalsTab({
         </Card>
 
         {/* MACD */}
-        <Card className="border-white/8 bg-white/4 p-4">
+        <Card className="border border-(--border-default) bg-(--bg-surface) p-4 rounded-xl shadow-xs">
           <CardHeader className="p-0 pb-3 flex flex-row items-center justify-between">
-            <CardTitle className="text-sm font-semibold text-slate-300">
+            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-(--text-secondary)">
               Chỉ báo MACD
             </CardTitle>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Info className="h-3.5 w-3.5 text-slate-500 cursor-help" />
+                <Info className="h-3.5 w-3.5 text-(--text-tertiary) hover:text-(--text-secondary) cursor-help" />
               </TooltipTrigger>
               <TooltipContent>
-                <p className="text-[11px]">Moving Average Convergence Divergence</p>
+                <p className="text-xs">Moving Average Convergence Divergence</p>
               </TooltipContent>
             </Tooltip>
           </CardHeader>
@@ -239,30 +249,30 @@ export default function TechnicalsTab({
         </Card>
 
         {/* Bollinger Bands */}
-        <Card className="border-white/8 bg-white/4 p-4">
+        <Card className="border border-(--border-default) bg-(--bg-surface) p-4 rounded-xl shadow-xs">
           <CardHeader className="p-0 pb-3 flex flex-row items-center justify-between">
-            <CardTitle className="text-sm font-semibold text-slate-300">
+            <CardTitle className="text-xs font-semibold uppercase tracking-wider text-(--text-secondary)">
               Bollinger Bands (20 phiên, 2σ)
             </CardTitle>
             <Tooltip>
               <TooltipTrigger asChild>
-                <Info className="h-3.5 w-3.5 text-slate-500 cursor-help" />
+                <Info className="h-3.5 w-3.5 text-(--text-tertiary) hover:text-(--text-secondary) cursor-help" />
               </TooltipTrigger>
               <TooltipContent>
-                <p className="text-[11px]">Dải biến động giá dựa trên độ lệch chuẩn (Upper / Middle / Lower)</p>
+                <p className="text-xs">Dải biến động giá dựa trên độ lệch chuẩn (Upper / Middle / Lower)</p>
               </TooltipContent>
             </Tooltip>
           </CardHeader>
           <CardContent className="p-0">
             <div className="grid grid-cols-3 gap-2.5">
               {[
-                { label: "Upper Band", value: indicators.bb_upper, color: "#ef4444" },
-                { label: "Middle (SMA20)", value: indicators.bb_middle, color: "#f59e0b" },
-                { label: "Lower Band", value: indicators.bb_lower, color: "#10b981" },
+                { label: "Upper Band", value: indicators.bb_upper, colorClass: "text-(--status-negative)" },
+                { label: "Middle (SMA20)", value: indicators.bb_middle, colorClass: "text-(--action-primary)" },
+                { label: "Lower Band", value: indicators.bb_lower, colorClass: "text-(--status-positive)" },
               ].map((bb) => (
-                <Card key={bb.label} className="p-3 border-white/8 bg-white/4 text-center">
-                  <div className="text-[10px] text-slate-400 mb-1">{bb.label}</div>
-                  <div className="text-sm md:text-base font-bold" style={{ color: bb.color }}>
+                <Card key={bb.label} className="p-3 border border-(--border-default) bg-(--bg-subtle) text-center rounded-lg shadow-none">
+                  <div className="text-[10px] font-medium text-(--text-secondary) mb-1">{bb.label}</div>
+                  <div className={cn("text-sm md:text-base font-bold tabular-nums", bb.colorClass)}>
                     {fmt(bb.value, 0)}
                   </div>
                 </Card>
@@ -270,10 +280,10 @@ export default function TechnicalsTab({
             </div>
             {indicators.bb_upper && indicators.bb_lower && lastPrice > 0 && (
               <div className="mt-3">
-                <div className="text-xs text-slate-400 mb-1">Vị trí giá trong dải</div>
-                <div className="h-2 w-full rounded-full bg-white/8 overflow-hidden">
+                <div className="text-xs text-(--text-secondary) mb-1">Vị trí giá trong dải</div>
+                <div className="h-2 w-full rounded-full bg-(--bg-subtle) border border-(--border-default) overflow-hidden">
                   <div
-                    className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-red-500 opacity-70"
+                    className="h-full rounded-full bg-(--action-primary)"
                     style={{
                       width: `${Math.min(
                         100,
@@ -295,4 +305,3 @@ export default function TechnicalsTab({
     </div>
   );
 }
-

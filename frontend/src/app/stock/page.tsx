@@ -26,7 +26,9 @@ import {
   LineChart,
   Landmark,
   Newspaper,
+  AlertTriangle,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 type Tab = "overview" | "trading" | "technicals" | "financials" | "news";
 
@@ -93,13 +95,13 @@ function SearchBar({
           onFocus={() => setShowDropdown(true)}
           onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
           placeholder="Tìm mã CK… (VNM, VIC…)"
-          className="pr-9 bg-white/5 border-white/10 text-xs rounded-xl font-bold tracking-wider uppercase placeholder:normal-case placeholder:font-normal"
+          className="pr-9 bg-(--bg-surface) border-(--border-default) text-(--text-primary) text-xs rounded-lg font-semibold tracking-wider uppercase placeholder:normal-case placeholder:font-normal placeholder:text-(--text-tertiary) h-9"
           id="stock-search-input"
         />
-        <Search className="absolute right-3 top-2.5 h-4 w-4 text-slate-500 pointer-events-none" />
+        <Search className="absolute right-3 top-2.5 h-4 w-4 text-(--text-tertiary) pointer-events-none" />
       </form>
       {showDropdown && searchResults.length > 0 && (
-        <Card className="absolute z-50 mt-1 w-full p-1 border-white/15 bg-[#0f0e1a] shadow-2xl overflow-hidden backdrop-blur-xl animate-fade-up">
+        <Card className="absolute z-50 mt-1 w-full p-1 border-(--border-default) bg-(--bg-surface) shadow-lg overflow-hidden rounded-lg">
           {searchResults.slice(0, 6).map((r) => (
             <button
               key={r.ticker}
@@ -107,12 +109,12 @@ function SearchBar({
                 onSelect(r.ticker);
                 setShowDropdown(false);
               }}
-              className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-xs hover:bg-violet-600/20 hover:text-white transition-colors cursor-pointer"
+              className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-xs text-(--text-primary) hover:bg-(--bg-subtle) transition-colors cursor-pointer"
             >
-              <Badge variant="cyan" className="font-bold text-[10px] py-0">
+              <Badge variant="secondary" className="font-semibold text-[10px] py-0 font-mono">
                 {r.ticker}
               </Badge>
-              <span className="text-slate-300 truncate text-xs">{r.organ_name}</span>
+              <span className="text-(--text-secondary) truncate text-xs">{r.organ_name}</span>
             </button>
           ))}
         </Card>
@@ -145,29 +147,29 @@ export default function StockPage() {
   };
 
   return (
-    <div className="flex h-full flex-col overflow-hidden bg-[#07070a] text-slate-100">
+    <div className="flex h-full flex-col overflow-hidden bg-(--bg-canvas) text-(--text-primary)">
       {/* ── Top Bar ── */}
-      <div className="flex shrink-0 items-center justify-between gap-4 border-b border-white/8 px-6 py-3 bg-[#07070a]/90 backdrop-blur-xl">
+      <div className="flex shrink-0 items-center justify-between gap-4 border-b border-(--border-default) px-6 py-3 bg-(--bg-surface)">
         {/* Search */}
         <SearchBar key={symbol} initialValue={symbol} onSelect={selectSymbol} />
 
         {/* Popular chips */}
         <div className="hidden md:flex flex-wrap items-center gap-1.5">
-          <span className="text-[11px] text-slate-500 mr-1">Phổ biến:</span>
+          <span className="text-[11px] text-(--text-tertiary) mr-1">Phổ biến:</span>
           {POPULAR_STOCKS.map((s) => (
-            <Badge
+            <button
               key={s}
               id={`chip-${s}`}
-              variant={symbol === s ? "default" : "secondary"}
               onClick={() => selectSymbol(s)}
-              className={`cursor-pointer text-xs font-bold transition-all ${
+              className={cn(
+                "rounded-md border px-2.5 py-1 text-xs font-semibold transition-colors cursor-pointer",
                 symbol === s
-                  ? "bg-violet-600 text-white shadow-sm shadow-violet-500/25 border-violet-500"
-                  : "bg-white/5 hover:bg-white/10 hover:text-white border-white/8"
-              }`}
+                  ? "border-(--border-strong) bg-(--bg-selected) text-(--action-primary)"
+                  : "border-(--border-default) bg-(--bg-subtle) text-(--text-secondary) hover:bg-(--bg-surface) hover:text-(--text-primary)"
+              )}
             >
               {s}
-            </Badge>
+            </button>
           ))}
         </div>
       </div>
@@ -176,13 +178,13 @@ export default function StockPage() {
       <StockHeader overview={overview || null} loading={loadingOverview} />
 
       {/* ── Tab Navigation using shadcn Tabs ── */}
-      <div className="shrink-0 border-b border-white/8 px-6 py-2 bg-[#07070a]">
+      <div className="shrink-0 border-b border-(--border-default) px-6 py-2 bg-(--bg-surface)">
         <Tabs
           value={activeTab}
           onValueChange={(v) => setActiveTab(v as Tab)}
           className="w-full"
         >
-          <TabsList className="bg-transparent border-none p-0 gap-2 h-auto justify-start">
+          <TabsList className="bg-transparent border-none p-0 gap-1.5 h-auto justify-start flex-wrap">
             {TABS.map((tab) => {
               const Icon = tab.icon;
               return (
@@ -190,7 +192,7 @@ export default function StockPage() {
                   key={tab.id}
                   value={tab.id}
                   id={`tab-${tab.id}`}
-                  className="flex items-center gap-2 rounded-xl px-4 py-2 text-xs font-semibold data-[state=active]:bg-violet-600/20 data-[state=active]:text-violet-300 data-[state=active]:border-violet-500/40 border border-transparent text-slate-400 hover:text-slate-200 transition-all cursor-pointer"
+                  className="flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-medium text-(--text-secondary) hover:text-(--text-primary) hover:bg-(--bg-subtle) data-[state=active]:bg-(--bg-selected) data-[state=active]:text-(--action-primary) data-[state=active]:font-semibold border border-transparent transition-colors cursor-pointer"
                 >
                   <Icon className="h-3.5 w-3.5" />
                   <span>{tab.label}</span>
@@ -203,8 +205,9 @@ export default function StockPage() {
 
       {/* ── Error Banner ── */}
       {overviewError && (
-        <div className="mx-6 mt-4 flex items-center gap-2 rounded-xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-xs text-red-400">
-          <span>⚠️ {(overviewError as Error)?.message || "Không thể tải dữ liệu chứng khoán."}</span>
+        <div className="mx-6 mt-4 flex items-center gap-2 rounded-lg border border-[color-mix(in_srgb,var(--status-negative)_30%,transparent)] bg-[color-mix(in_srgb,var(--status-negative)_10%,transparent)] px-4 py-3 text-xs text-(--status-negative)">
+          <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
+          <span>{(overviewError as Error)?.message || "Không thể tải dữ liệu chứng khoán."}</span>
         </div>
       )}
 
@@ -234,4 +237,3 @@ export default function StockPage() {
     </div>
   );
 }
-

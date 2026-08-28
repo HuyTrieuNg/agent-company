@@ -20,7 +20,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="vi" suppressHydrationWarning>
-      <body className={`${inter.className} bg-[#07070a] text-slate-50 min-h-screen selection:bg-violet-500/30 selection:text-white`}>
+      <body className={`${inter.className} min-h-screen bg-(--bg-canvas) text-(--text-primary)`}>
         <AppProviders>{children}</AppProviders>
       </body>
     </html>
