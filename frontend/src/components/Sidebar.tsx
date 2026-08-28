@@ -25,12 +25,11 @@ import {
   Plus,
   Trash2,
   SlidersHorizontal,
-  Sparkles,
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
 
-const NAV_ITEMS = [
+export const NAV_ITEMS = [
   {
     href: "/",
     id: "nav-chat",
@@ -120,7 +119,7 @@ export default function Sidebar() {
   return (
     <aside
       className={cn(
-        "fixed left-0 top-0 z-40 flex h-screen flex-col border-r border-white/8 bg-[#09090f] py-4 transition-[width] duration-200 ease-in-out",
+        "fixed left-0 top-0 z-40 hidden md:flex h-screen flex-col border-r border-(--border-default) bg-(--bg-surface) py-4 transition-[width] duration-200 ease-in-out",
         collapsed
           ? "w-15 items-center"
           : "w-15 items-center md:w-60 md:items-stretch md:px-3"
@@ -133,8 +132,8 @@ export default function Sidebar() {
           collapsed ? "flex-col" : "justify-center md:justify-start"
         )}
       >
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-violet-600 to-cyan-500 text-white shadow-md shadow-violet-500/25 animate-pulse-glow">
-          <Sparkles className="h-4 w-4" />
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-(--bg-selected) text-(--action-primary)">
+          <TrendingUp className="h-4 w-4" aria-hidden="true" />
         </div>
         <div
           className={cn(
@@ -142,10 +141,10 @@ export default function Sidebar() {
             collapsed ? "h-0 w-0 opacity-0" : "opacity-100"
           )}
         >
-          <p className="whitespace-nowrap text-sm font-bold bg-linear-to-r from-white to-violet-300 bg-clip-text text-transparent leading-tight">
+          <p className="whitespace-nowrap text-sm font-bold leading-tight text-(--text-primary)">
             Agent Company
           </p>
-          <p className="whitespace-nowrap text-[10px] text-slate-500">Google Gemini Agent</p>
+          <p className="whitespace-nowrap text-[10px] text-(--text-tertiary)">Financial intelligence</p>
         </div>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -155,7 +154,7 @@ export default function Sidebar() {
               onClick={toggleSidebar}
               aria-label={collapsed ? "Mở rộng thanh bên" : "Thu gọn thanh bên"}
               className={cn(
-                "h-7 w-7 rounded-lg text-slate-400 hover:bg-white/5 hover:text-slate-100",
+                "h-8 w-8 text-(--text-secondary) hover:bg-(--bg-subtle) hover:text-(--text-primary)",
                 collapsed ? "" : "ml-auto hidden md:inline-flex"
               )}
             >
@@ -187,13 +186,13 @@ export default function Sidebar() {
                   href={item.href}
                   id={item.id}
                   className={cn(
-                    "group relative flex h-9.5 items-center overflow-hidden rounded-xl border transition-all duration-150",
+                    "group relative flex h-9.5 items-center overflow-hidden rounded-lg border border-transparent transition-colors duration-150",
                     collapsed
                       ? "justify-center px-0"
                       : "justify-center md:justify-start md:px-3",
                     isActive
-                      ? "bg-violet-600/15 text-violet-300 border-violet-500/25 font-semibold"
-                      : "text-slate-400 hover:bg-white/5 hover:text-slate-200 border-transparent"
+                      ? "border-(--border-default) bg-(--bg-selected) font-semibold text-(--text-primary)"
+                      : "text-(--text-secondary) hover:bg-(--bg-subtle) hover:text-(--text-primary)"
                   )}
                 >
                   <Icon className="h-4 w-4 shrink-0" />
@@ -207,20 +206,20 @@ export default function Sidebar() {
                   </span>
                   {isNews && pinnedArticles.length > 0 && (
                     collapsed ? (
-                      <span className="absolute right-1 top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-violet-600 px-1 text-[8px] font-bold leading-none text-white">
+                      <span className="absolute right-1 top-0.5 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-(--action-primary) px-1 text-[8px] font-bold leading-none text-(--action-on-primary)">
                         {pinnedArticles.length}
                       </span>
                     ) : (
                       <Badge
                         variant="default"
-                        className="ml-auto hidden rounded-full bg-violet-600 px-1.5 py-0.2 text-[10px] font-bold text-white md:inline-flex"
+                        className="ml-auto hidden rounded-full bg-(--bg-subtle) px-1.5 py-0.2 text-[10px] font-bold text-(--text-secondary) md:inline-flex"
                       >
                         {pinnedArticles.length}
                       </Badge>
                     )
                   )}
                   {isActive && !isNews && !collapsed && (
-                    <span className="ml-auto hidden h-1.5 w-1.5 shrink-0 rounded-full bg-violet-500 md:block" />
+                    <span className="ml-auto hidden h-4 w-0.5 shrink-0 rounded-full bg-(--action-primary) md:block" />
                   )}
                 </Link>
               </TooltipTrigger>
@@ -234,9 +233,9 @@ export default function Sidebar() {
 
       {/* Chat History Sessions — hidden while collapsed */}
       {!collapsed && (
-        <div className="hidden flex-1 flex-col overflow-hidden border-t border-white/8 pt-3 md:flex">
+        <div className="hidden flex-1 flex-col overflow-hidden border-t border-(--border-default) pt-3 md:flex">
           <div className="mb-2 flex items-center justify-between px-2">
-            <span className="whitespace-nowrap text-[10px] font-bold tracking-wider text-slate-500 uppercase">
+            <span className="whitespace-nowrap text-[10px] font-bold tracking-wider text-(--text-tertiary) uppercase">
               Lịch sử trò chuyện
             </span>
             <Tooltip>
@@ -245,7 +244,7 @@ export default function Sidebar() {
                   variant="ghost"
                   size="icon"
                   onClick={handleCreateSession}
-                  className="h-6 w-6 rounded-md border border-white/10 bg-white/5 text-slate-300 hover:border-violet-500 hover:bg-violet-600/20 hover:text-slate-100"
+                  className="h-8 w-8 border border-(--border-default) bg-(--bg-surface) text-(--text-secondary) hover:border-(--border-strong) hover:bg-(--bg-subtle) hover:text-(--text-primary)"
                 >
                   <Plus className="h-3.5 w-3.5" />
                 </Button>
@@ -258,11 +257,11 @@ export default function Sidebar() {
 
           <div className="flex-1 overflow-y-auto space-y-1 pr-1 custom-scrollbar">
             {loadingSessions ? (
-              <div className="py-4 text-center text-xs text-slate-600 animate-pulse">
+              <div className="py-4 text-center text-xs text-(--text-tertiary) animate-pulse">
                 Đang tải lịch sử...
               </div>
             ) : sessions.length === 0 ? (
-              <div className="py-4 text-center text-xs text-slate-600">
+              <div className="py-4 text-center text-xs text-(--text-tertiary)">
                 Chưa có lịch sử chat
               </div>
             ) : (
@@ -271,20 +270,31 @@ export default function Sidebar() {
                 return (
                   <div
                     key={s.id}
-                    onClick={() => handleSelectSession(s.id)}
-                    className={`group relative flex items-center gap-2 rounded-xl px-2.5 py-2 text-xs transition-all cursor-pointer ${
+                    className={`group relative flex items-center gap-1 rounded-lg border px-1 transition-colors ${
                       isActive
-                        ? "bg-violet-600/20 text-violet-200 font-semibold border border-violet-500/25"
-                        : "text-slate-400 hover:bg-white/5 hover:text-slate-200 border border-transparent"
+                        ? "border-(--border-default) bg-(--bg-selected)"
+                        : "border-transparent hover:bg-(--bg-subtle)"
                     }`}
                   >
-                    <MessageSquare className="h-3.5 w-3.5 shrink-0 text-slate-500 group-hover:text-violet-400" />
-                    <span className="truncate flex-1 text-[11px]">{s.title}</span>
+                    <button
+                      onClick={() => handleSelectSession(s.id)}
+                      aria-current={isActive ? "true" : undefined}
+                      className={cn(
+                        "flex flex-1 items-center gap-2 rounded-md px-1.5 py-2 text-xs transition-colors text-left min-w-0",
+                        isActive
+                          ? "font-semibold text-(--text-primary)"
+                          : "text-(--text-secondary) hover:text-(--text-primary)"
+                      )}
+                    >
+                      <MessageSquare className="h-3.5 w-3.5 shrink-0 text-(--text-tertiary) group-hover:text-(--action-primary)" aria-hidden="true" />
+                      <span className="truncate flex-1 text-[11px]">{s.title}</span>
+                    </button>
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <button
                           onClick={(e) => handleDeleteSession(s.id, e)}
-                          className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-500 hover:text-red-400 p-0.5 rounded cursor-pointer"
+                          className="opacity-0 group-hover:opacity-100 transition-opacity text-(--text-tertiary) hover:text-(--status-negative) p-1 rounded shrink-0 focus-visible:opacity-100"
+                          aria-label={`Xóa cuộc hội thoại: ${s.title}`}
                         >
                           <Trash2 className="h-3 w-3" />
                         </button>
@@ -304,7 +314,7 @@ export default function Sidebar() {
       {/* Bottom User Preference Button & Status */}
       <div
         className={cn(
-          "mt-auto flex flex-col gap-2 border-t border-white/8 pt-3",
+          "mt-auto flex flex-col gap-2 border-t border-(--border-default) pt-3",
           collapsed ? "items-center w-full px-2" : ""
         )}
       >
@@ -316,13 +326,13 @@ export default function Sidebar() {
               variant="secondary"
               onClick={() => setIsPrefModalOpen(true)}
               className={cn(
-                "h-9 items-center gap-0 overflow-hidden rounded-xl border border-white/10 bg-white/4 text-xs font-medium text-slate-300 hover:border-violet-500/50 hover:bg-violet-600/10 hover:text-slate-100 transition-all",
+                "h-9 items-center gap-0 overflow-hidden rounded-lg border border-(--border-default) bg-(--bg-surface) text-xs font-medium text-(--text-secondary) hover:border-(--border-strong) hover:bg-(--bg-subtle) hover:text-(--text-primary) transition-colors",
                 collapsed
                   ? "w-full justify-center px-0"
                   : "flex w-full justify-center px-2 md:justify-start md:px-3"
               )}
             >
-              <SlidersHorizontal className="h-3.5 w-3.5 text-violet-400 shrink-0" />
+              <SlidersHorizontal className="h-3.5 w-3.5 text-(--action-primary) shrink-0" />
               <span
                 className={cn(
                   "hidden overflow-hidden whitespace-nowrap transition-all duration-200 ease-in-out md:block",
@@ -340,21 +350,21 @@ export default function Sidebar() {
 
         {collapsed ? (
           <div className="flex flex-col items-center gap-1.5 py-1">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px_#10b981]" />
+            <span className="h-1.5 w-1.5 rounded-full bg-(--status-positive)" />
             {pinnedArticles.length > 0 && (
-              <Badge variant="secondary" className="text-violet-300 text-[9px] px-1.5 py-0">
+              <Badge variant="secondary" className="text-(--text-secondary) text-[9px] px-1.5 py-0">
                 {pinnedArticles.length}
               </Badge>
             )}
           </div>
         ) : (
-          <div className="hidden items-center justify-between whitespace-nowrap px-2 py-1 text-[10px] text-slate-500 md:flex">
+          <div className="hidden items-center justify-between whitespace-nowrap px-2 py-1 text-[10px] text-(--text-tertiary) md:flex">
             <span className="flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_6px_#10b981]" />
+              <span className="h-1.5 w-1.5 rounded-full bg-(--status-positive)" />
               Hệ thống sẵn sàng
             </span>
             {pinnedArticles.length > 0 && (
-              <Badge variant="secondary" className="text-violet-300 text-[10px] px-1.5 py-0">
+              <Badge variant="secondary" className="text-(--text-secondary) text-[10px] px-1.5 py-0">
                 {pinnedArticles.length} context
               </Badge>
             )}

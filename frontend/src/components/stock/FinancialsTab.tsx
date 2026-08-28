@@ -205,7 +205,6 @@ function fmtCell(raw: unknown, key: string, name: string): string {
 
 /* ─── Period label parsing ─────────────────────────────────────────────────── */
 
-/** Sortable rank of a period row — annual reports rank above quarters of the same year */
 function periodRank(row: Record<string, unknown>): number | null {
   const year = toNum(row.yearReport) ?? toNum(row.year);
   if (year === null) return null;
@@ -214,19 +213,16 @@ function periodRank(row: Record<string, unknown>): number | null {
   return year * 5 + q;
 }
 
-/** A column key like "2026-Q2", "Q1/2025" or "Năm 2025" denotes a period (transposed datasets) */
 function isPeriodLikeCol(key: string): boolean {
   return /(?:19|20)\d{2}/.test(key) || /^\s*q\s*[1-4]\b/i.test(key);
 }
 
-/** Sortable rank of a period-like column label */
 function periodRankFromLabel(label: string): number {
   const year = Number(label.match(/(?:19|20)\d{2}/)?.[0] ?? 0);
   const q = Number(label.match(/q\s*([1-4])/i)?.[1] ?? 4);
   return year * 5 + q;
 }
 
-/** Normalize "2026-Q2" / "Q2-2026" to the canonical "Q2/2026" form */
 function prettifyPeriodLabel(label: string): string {
   const yearFirst = label.match(/^\s*((?:19|20)\d{2})\s*[-/]\s*q\s*([1-4])\s*$/i);
   if (yearFirst) return `Q${yearFirst[2]}/${yearFirst[1]}`;
@@ -289,11 +285,6 @@ function makeRow(
   };
 }
 
-/**
- * Normalizes both API shapes into { periods: newest-first, rows: indicators }.
- * Shape A — each record is one period (yearReport/lengthReport fields).
- * Shape B — transposed: each record is one indicator, period labels are column keys.
- */
 function buildFinancialModel(records: FinancialRecord[]): FinancialModel {
   if (records.length === 0) return { periods: [], rows: [] };
   const keys = Object.keys(records[0]);
@@ -359,12 +350,12 @@ function GrowthBadge({ cur, prev }: { cur: number | null; prev: number | null })
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-0.5 rounded-full px-1.5 py-px text-[10px] font-semibold tabular-nums",
+        "inline-flex items-center gap-0.5 rounded px-1 py-px text-[10px] font-semibold tabular-nums border",
         up
-          ? "bg-emerald-500/10 text-emerald-400"
+          ? "border-[color-mix(in_srgb,var(--status-positive)_30%,transparent)] bg-[color-mix(in_srgb,var(--status-positive)_10%,transparent)] text-(--status-positive)"
           : down
-            ? "bg-red-500/10 text-red-400"
-            : "bg-white/5 text-slate-400"
+            ? "border-[color-mix(in_srgb,var(--status-negative)_30%,transparent)] bg-[color-mix(in_srgb,var(--status-negative)_10%,transparent)] text-(--status-negative)"
+            : "border-(--border-default) bg-(--bg-subtle) text-(--text-tertiary)"
       )}
     >
       {up ? (
@@ -427,30 +418,25 @@ export default function FinancialsTab({
     return (
       <div className="space-y-4">
         <div className="flex gap-3">
-          <Skeleton className="h-10 w-64 rounded-xl" />
-          <Skeleton className="h-10 w-32 rounded-xl" />
+          <Skeleton className="h-9 w-64 rounded-lg" />
+          <Skeleton className="h-9 w-32 rounded-lg" />
         </div>
-        <Skeleton className="h-96 w-full rounded-2xl" />
+        <Skeleton className="h-96 w-full rounded-xl" />
       </div>
     );
   }
 
   const isFiltering = filter.trim() !== "";
 
-  /* Solid backgrounds so sticky cells stay opaque across zebra / headline rows */
-  const rowBg = (idx: number, emphasized: boolean) =>
-    emphasized ? "bg-[#14122a]" : idx % 2 === 1 ? "bg-[#10101b]" : "bg-[#0c0c14]";
-  const rowHoverBg = "group-hover:bg-[#191830]";
-
   const filterInput = (
     <div className="relative">
-      <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-500" />
+      <Search className="pointer-events-none absolute left-2 top-1/2 h-3 w-3 -translate-y-1/2 text-(--text-tertiary)" />
       <Input
         value={filter}
         onChange={(e) => setFilter(e.target.value)}
         placeholder="Lọc chỉ tiêu..."
         aria-label="Lọc chỉ tiêu tài chính"
-        className="h-7 border-white/10 bg-white/5 pl-7 text-xs placeholder:text-slate-500"
+        className="h-7 border-(--border-default) bg-(--bg-surface) pl-7 text-xs placeholder:text-(--text-tertiary)"
       />
     </div>
   );
@@ -465,14 +451,14 @@ export default function FinancialsTab({
             value={activeReport}
             onValueChange={(val) => changeReport(val as ReportType, activePeriod)}
           >
-            <TabsList className="bg-white/5 border-white/10">
+            <TabsList className="bg-(--bg-subtle) border border-(--border-default) h-8 p-0.5">
               {REPORT_TYPES.map((rt) => (
                 <TabsTrigger
                   key={rt.id}
                   value={rt.id}
                   id={`report-${rt.id}`}
                   title={rt.title}
-                  className="data-[state=active]:bg-violet-600 data-[state=active]:text-white text-xs font-semibold"
+                  className="data-[state=active]:bg-(--bg-surface) data-[state=active]:text-(--text-primary) text-xs font-medium h-7 px-2.5"
                 >
                   {rt.label}
                 </TabsTrigger>
@@ -485,18 +471,18 @@ export default function FinancialsTab({
             value={activePeriod}
             onValueChange={(val) => changeReport(activeReport, val as Period)}
           >
-            <TabsList className="bg-white/5 border-white/10">
+            <TabsList className="bg-(--bg-subtle) border border-(--border-default) h-8 p-0.5">
               <TabsTrigger
                 value="quarter"
                 id="period-quarter"
-                className="data-[state=active]:bg-cyan-600 data-[state=active]:text-white text-xs font-semibold"
+                className="data-[state=active]:bg-(--bg-surface) data-[state=active]:text-(--text-primary) text-xs font-medium h-7 px-2.5"
               >
                 Theo Quý
               </TabsTrigger>
               <TabsTrigger
                 value="annual"
                 id="period-annual"
-                className="data-[state=active]:bg-cyan-600 data-[state=active]:text-white text-xs font-semibold"
+                className="data-[state=active]:bg-(--bg-surface) data-[state=active]:text-(--text-primary) text-xs font-medium h-7 px-2.5"
               >
                 Theo Năm
               </TabsTrigger>
@@ -508,22 +494,22 @@ export default function FinancialsTab({
             value={layoutMode}
             onValueChange={(val) => setLayoutMode(val as LayoutMode)}
           >
-            <TabsList className="bg-white/5 border-white/10 h-9 p-0.5">
+            <TabsList className="bg-(--bg-subtle) border border-(--border-default) h-8 p-0.5">
               <TabsTrigger
                 value="indicators_row"
-                className="text-xs h-7 gap-1.5 data-[state=active]:bg-white/15 data-[state=active]:text-slate-50"
+                className="text-xs h-7 px-2.5 gap-1.5 data-[state=active]:bg-(--bg-surface) data-[state=active]:text-(--text-primary)"
                 title="Hiển thị chỉ tiêu theo từng dòng, kỳ theo cột"
               >
                 <TableProperties className="h-3.5 w-3.5" />
-                <span>Chỉ tiêu theo dòng</span>
+                <span className="hidden sm:inline">Chỉ tiêu theo dòng</span>
               </TabsTrigger>
               <TabsTrigger
                 value="periods_row"
-                className="text-xs h-7 gap-1.5 data-[state=active]:bg-white/15 data-[state=active]:text-slate-50"
+                className="text-xs h-7 px-2.5 gap-1.5 data-[state=active]:bg-(--bg-surface) data-[state=active]:text-(--text-primary)"
                 title="Hiển thị kỳ theo từng dòng, chỉ tiêu theo cột"
               >
                 <SlidersHorizontal className="h-3.5 w-3.5" />
-                <span>Kỳ theo dòng</span>
+                <span className="hidden sm:inline">Kỳ theo dòng</span>
               </TabsTrigger>
             </TabsList>
           </Tabs>
@@ -532,7 +518,7 @@ export default function FinancialsTab({
         <Tooltip>
           <TooltipTrigger asChild>
             <Badge variant="secondary" className="text-xs flex items-center gap-1 cursor-help">
-              <Info className="h-3 w-3 text-slate-400" />
+              <Info className="h-3 w-3 text-(--text-tertiary)" />
               <span>{symbol} — {model.periods.length} kỳ báo cáo</span>
             </Badge>
           </TooltipTrigger>
@@ -547,23 +533,23 @@ export default function FinancialsTab({
 
       {/* Table Area */}
       {model.periods.length === 0 || model.rows.length === 0 ? (
-        <Card className="border-white/8 bg-[#0c0c14] flex flex-col items-center justify-center py-20 text-slate-500">
-          <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-xl bg-white/5">
-            <Landmark className="h-6 w-6 text-slate-400" />
+        <Card className="border border-(--border-default) bg-(--bg-surface) flex flex-col items-center justify-center py-20 text-(--text-tertiary) rounded-xl">
+          <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-lg bg-(--bg-subtle)">
+            <Landmark className="h-6 w-6 text-(--text-tertiary)" />
           </div>
-          <p className="text-sm font-semibold text-slate-300">Không có dữ liệu báo cáo tài chính</p>
-          <p className="text-xs text-slate-500 mt-1">Hãy thử chọn loại báo cáo hoặc kỳ khác</p>
+          <p className="text-sm font-semibold text-(--text-primary)">Không có dữ liệu báo cáo tài chính</p>
+          <p className="text-xs text-(--text-tertiary) mt-1">Hãy thử chọn loại báo cáo hoặc kỳ khác</p>
         </Card>
       ) : layoutMode === "indicators_row" ? (
-        <Card className="border-white/8 bg-[#0c0c14] overflow-hidden shadow-2xl">
+        <Card className="border border-(--border-default) bg-(--bg-surface) overflow-hidden rounded-xl shadow-xs">
           <CardContent className="p-0">
-            <div className="overflow-x-auto custom-scrollbar">
+            <div className="overflow-x-auto">
               {/* ─── Mode 1: Indicators as Rows, Periods as Columns (Industry Standard) ─── */}
               <Table id="financials-table" className="border-collapse w-full">
                 <TableHeader>
-                  <TableRow className="border-b border-white/10 hover:bg-transparent">
+                  <TableRow className="border-b border-(--border-default) hover:bg-transparent">
                     {/* Top-Left Corner Header: Sticky BOTH Top and Left — hosts the indicator filter */}
-                    <TableHead className="sticky top-0 left-0 z-30 min-w-[240px] max-w-[320px] bg-[#0e0d18] border-r border-b border-white/15 px-3 py-2.5 shadow-[4px_0_12px_rgba(0,0,0,0.6)]">
+                    <TableHead className="sticky top-0 left-0 z-30 min-w-[240px] max-w-[320px] bg-(--bg-subtle) border-r border-b border-(--border-default) px-3 py-2">
                       {filterInput}
                     </TableHead>
 
@@ -572,15 +558,15 @@ export default function FinancialsTab({
                       <TableHead
                         key={label + idx}
                         className={cn(
-                          "sticky top-0 z-20 min-w-[130px] bg-[#0e0d18] border-b border-white/10 px-4 py-2.5 text-right text-xs font-bold backdrop-blur-md tabular-nums",
-                          idx === 0 ? "text-cyan-300" : "text-slate-200"
+                          "sticky top-0 z-20 min-w-[130px] bg-(--bg-subtle) border-b border-(--border-default) px-4 py-2.5 text-right text-xs font-semibold tabular-nums",
+                          idx === 0 ? "text-(--action-primary) font-bold" : "text-(--text-secondary)"
                         )}
                       >
                         <span className="inline-flex items-center gap-1.5">
                           {label}
                           {idx === 0 && (
                             <span
-                              className="inline-block h-1.5 w-1.5 rounded-full bg-cyan-400"
+                              className="inline-block h-1.5 w-1.5 rounded-full bg-(--action-primary)"
                               aria-hidden="true"
                             />
                           )}
@@ -590,29 +576,28 @@ export default function FinancialsTab({
                   </TableRow>
                 </TableHeader>
 
-                <TableBody className="divide-y divide-white/5">
+                <TableBody className="divide-y divide-(--border-default)">
                   {visibleRows.map((row, rowIdx) => (
                     <TableRow
                       key={row.key}
                       className={cn(
-                        "transition-colors group hover:bg-transparent",
-                        rowBg(rowIdx, row.headline)
+                        "transition-colors hover:bg-(--bg-subtle)/50",
+                        row.headline ? "bg-(--bg-subtle)/30 font-semibold" : rowIdx % 2 === 1 ? "bg-(--bg-subtle)/15" : "bg-(--bg-surface)"
                       )}
                     >
                       {/* Item Column Cell: Sticky Left */}
                       <TableCell
                         className={cn(
-                          "sticky left-0 z-10 min-w-[240px] max-w-[320px] border-r border-white/10 px-3 py-2 shadow-[4px_0_12px_rgba(0,0,0,0.6)] transition-colors",
-                          rowBg(rowIdx, row.headline),
-                          rowHoverBg
+                          "sticky left-0 z-10 min-w-[240px] max-w-[320px] border-r border-(--border-default) px-3 py-2 transition-colors",
+                          row.headline ? "bg-(--bg-subtle)/60 font-semibold" : rowIdx % 2 === 1 ? "bg-(--bg-subtle)/30" : "bg-(--bg-surface)"
                         )}
                       >
                         <span
                           className={cn(
                             "block leading-tight text-xs",
                             row.headline
-                              ? "font-bold text-slate-50"
-                              : "font-semibold text-slate-100"
+                              ? "font-bold text-(--text-primary)"
+                              : "font-medium text-(--text-primary)"
                           )}
                         >
                           {row.name}
@@ -620,7 +605,7 @@ export default function FinancialsTab({
                         <span className="mt-0.5 flex items-center gap-1.5">
                           <GrowthBadge cur={row.growth.cur} prev={row.growth.prev} />
                           {row.sub && (
-                            <span className="text-[10px] text-slate-600 font-mono truncate opacity-80 group-hover:text-slate-500">
+                            <span className="text-[10px] text-(--text-tertiary) font-mono truncate">
                               {row.sub}
                             </span>
                           )}
@@ -635,14 +620,14 @@ export default function FinancialsTab({
                             key={idx}
                             className={cn(
                               "text-right text-xs px-4 py-2 font-mono tabular-nums",
-                              idx === 0 && "bg-violet-400/[0.04]",
+                              idx === 0 && "bg-(--bg-selected)/15 font-semibold",
                               n !== null && n < 0
-                                ? "text-red-400 font-medium"
+                                ? "text-(--status-negative) font-medium"
                                 : n !== null && n > 0
                                   ? row.headline
-                                    ? "text-slate-50 font-semibold"
-                                    : "text-slate-200"
-                                  : "text-slate-500"
+                                    ? "text-(--text-primary) font-semibold"
+                                    : "text-(--text-secondary)"
+                                  : "text-(--text-tertiary)"
                             )}
                           >
                             {fmtCell(raw, row.key, row.name)}
@@ -655,7 +640,7 @@ export default function FinancialsTab({
                     <TableRow className="hover:bg-transparent">
                       <TableCell
                         colSpan={model.periods.length + 1}
-                        className="py-12 text-center text-xs text-slate-500"
+                        className="py-12 text-center text-xs text-(--text-tertiary)"
                       >
                         Không có chỉ tiêu nào khớp bộ lọc “{filter.trim()}”
                       </TableCell>
@@ -666,7 +651,7 @@ export default function FinancialsTab({
             </div>
 
             {/* Footer note */}
-            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/5 px-4 py-2.5 text-[10px] text-slate-500">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-(--border-default) px-4 py-2.5 text-[11px] text-(--text-tertiary)">
               <span>Số liệu lớn tự rút gọn thành triệu / tỷ đồng · Chỉ số tỷ suất hiển thị %</span>
               <span className="tabular-nums">
                 {model.periods.length} kỳ{isFiltering ? ` · ${visibleRows.length}/${model.rows.length} chỉ tiêu` : ""}
@@ -675,15 +660,15 @@ export default function FinancialsTab({
           </CardContent>
         </Card>
       ) : (
-        <Card className="border-white/8 bg-[#0c0c14] overflow-hidden shadow-2xl">
+        <Card className="border border-(--border-default) bg-(--bg-surface) overflow-hidden rounded-xl shadow-xs">
           <CardContent className="p-0">
-            <div className="overflow-x-auto custom-scrollbar">
+            <div className="overflow-x-auto">
               {/* ─── Mode 2: Periods as Rows (newest first), Indicators as Columns ─── */}
               <Table id="financials-table" className="border-collapse w-full">
                 <TableHeader>
-                  <TableRow className="border-b border-white/10 hover:bg-transparent">
+                  <TableRow className="border-b border-(--border-default) hover:bg-transparent">
                     {/* Top-Left Corner Header: Sticky BOTH Top and Left — hosts the indicator filter */}
-                    <TableHead className="sticky top-0 left-0 z-30 min-w-[150px] bg-[#0e0d18] border-r border-b border-white/15 px-3 py-2.5 shadow-[4px_0_12px_rgba(0,0,0,0.6)]">
+                    <TableHead className="sticky top-0 left-0 z-30 min-w-[150px] bg-(--bg-subtle) border-r border-b border-(--border-default) px-3 py-2">
                       {filterInput}
                     </TableHead>
 
@@ -691,15 +676,15 @@ export default function FinancialsTab({
                     {visibleRows.map((row) => (
                       <TableHead
                         key={row.key}
-                        className="sticky top-0 z-20 min-w-[160px] bg-[#0e0d18] border-b border-white/10 px-3 py-2 text-right align-top backdrop-blur-md"
+                        className="sticky top-0 z-20 min-w-[160px] bg-(--bg-subtle) border-b border-(--border-default) px-3 py-2 text-right align-top"
                       >
-                        <span className="block text-xs font-bold text-slate-200 leading-tight">
+                        <span className="block text-xs font-semibold text-(--text-primary) leading-tight">
                           {row.name}
                         </span>
                         <span className="mt-1 flex items-center justify-end gap-1.5">
                           <GrowthBadge cur={row.growth.cur} prev={row.growth.prev} />
                           {row.sub && (
-                            <span className="text-[9px] text-slate-600 font-mono font-normal">
+                            <span className="text-[9px] text-(--text-tertiary) font-mono font-normal">
                               {row.sub}
                             </span>
                           )}
@@ -709,27 +694,31 @@ export default function FinancialsTab({
                   </TableRow>
                 </TableHeader>
 
-                <TableBody className="divide-y divide-white/5">
+                <TableBody className="divide-y divide-(--border-default)">
                   {model.periods.map((label, i) => (
                     <TableRow
                       key={label + i}
-                      className={cn("transition-colors group", rowBg(i, false))}
+                      className={cn(
+                        "transition-colors hover:bg-(--bg-subtle)/50",
+                        i === 0 ? "bg-(--bg-selected)/20 font-semibold" : i % 2 === 1 ? "bg-(--bg-subtle)/15" : "bg-(--bg-surface)"
+                      )}
                     >
                       {/* Period Column Cell: Sticky Left — latest row highlighted */}
                       <TableCell
                         className={cn(
-                          "sticky left-0 z-10 min-w-[150px] border-r border-white/10 px-3 py-2.5 whitespace-nowrap text-xs shadow-[4px_0_12px_rgba(0,0,0,0.6)] transition-colors",
+                          "sticky left-0 z-10 min-w-[150px] border-r border-(--border-default) px-3 py-2.5 whitespace-nowrap text-xs transition-colors",
                           i === 0
-                            ? "bg-[#12142a] font-bold text-cyan-300"
-                            : cn(rowBg(i, false), "font-semibold text-slate-300"),
-                          rowHoverBg
+                            ? "bg-(--bg-selected) font-bold text-(--action-primary)"
+                            : i % 2 === 1
+                              ? "bg-(--bg-subtle)/30 font-medium text-(--text-secondary)"
+                              : "bg-(--bg-surface) font-medium text-(--text-secondary)"
                         )}
                       >
                         <span className="inline-flex items-center gap-1.5 tabular-nums">
                           {label}
                           {i === 0 && (
                             <span
-                              className="inline-block h-1.5 w-1.5 rounded-full bg-cyan-400"
+                              className="inline-block h-1.5 w-1.5 rounded-full bg-(--action-primary)"
                               aria-hidden="true"
                             />
                           )}
@@ -745,12 +734,12 @@ export default function FinancialsTab({
                             key={row.key}
                             className={cn(
                               "text-right text-xs px-3 py-2.5 font-mono tabular-nums",
-                              i === 0 && "bg-violet-400/[0.04]",
+                              i === 0 && "bg-(--bg-selected)/15 font-semibold",
                               n !== null && n < 0
-                                ? "text-red-400 font-medium"
+                                ? "text-(--status-negative) font-medium"
                                 : n !== null && n > 0
-                                  ? "text-slate-200"
-                                  : "text-slate-500"
+                                  ? "text-(--text-primary)"
+                                  : "text-(--text-tertiary)"
                             )}
                           >
                             {fmtCell(raw, row.key, row.name)}
@@ -764,7 +753,7 @@ export default function FinancialsTab({
             </div>
 
             {/* Footer note */}
-            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/5 px-4 py-2.5 text-[10px] text-slate-500">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-(--border-default) px-4 py-2.5 text-[11px] text-(--text-tertiary)">
               <span>Số liệu lớn tự rút gọn thành triệu / tỷ đồng · Chỉ số tỷ suất hiển thị %</span>
               <span className="tabular-nums">
                 {model.periods.length} kỳ{isFiltering ? ` · ${visibleRows.length}/${model.rows.length} chỉ tiêu` : ""}

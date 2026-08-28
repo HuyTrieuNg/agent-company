@@ -9,27 +9,10 @@ import MarketPage, {
   ChangeBadge,
   type MarketColumn,
   type MarketMetric,
-  type MarketTheme,
 } from "@/components/common/MarketPage";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Coins } from "lucide-react";
-
-const THEME: MarketTheme = {
-  iconGradient: "bg-linear-to-br from-amber-400 to-yellow-600 text-slate-950 shadow-amber-500/25",
-  titleGradient: "from-amber-200 via-amber-400 to-yellow-400",
-  liveBadgeClass: "border-amber-500/30 bg-amber-500/10 text-amber-300",
-  liveDotClass: "bg-amber-400",
-  activePillClass: "bg-linear-to-r from-amber-500 to-yellow-600 text-slate-950 shadow-md shadow-amber-500/25",
-  selectedRowClass: "bg-amber-500/10",
-  newsHeadingIconClass: "text-amber-400",
-  newsSourceBadgeClass: "bg-amber-500/15 text-amber-300",
-  newsTitleHoverClass: "group-hover:text-amber-300",
-  sourceLinkClass: "text-amber-400 hover:text-amber-300",
-  pinBtnActiveClass: "bg-amber-600 text-white shadow-md shadow-amber-500/25 hover:bg-amber-700",
-  pinBtnHoverClass: "hover:bg-amber-600/20 hover:text-amber-300",
-  pinnedCardClass: "border-amber-500/50 bg-linear-to-b from-amber-950/20 to-[#0d0d16] shadow-md shadow-amber-500/10",
-};
 
 function formatMoney(val: number | undefined | null, unit?: string): string {
   if (val == null || isNaN(val)) return "—";
@@ -61,7 +44,6 @@ function buildMetrics(item: GoldItem): MarketMetric[] {
       value: formatMoney(item.buy_price, item.unit),
       sub: item.unit,
       tooltip: "Giá doanh nghiệp mua vào từ khách hàng",
-      tone: "emerald",
     },
     {
       key: "sell",
@@ -69,7 +51,6 @@ function buildMetrics(item: GoldItem): MarketMetric[] {
       value: formatMoney(item.sell_price, item.unit),
       sub: item.unit,
       tooltip: "Giá doanh nghiệp bán ra cho khách hàng",
-      tone: "red",
     },
     {
       key: "spread",
@@ -77,17 +58,14 @@ function buildMetrics(item: GoldItem): MarketMetric[] {
       value: formatMoney(item.spread, item.unit),
       sub: "Biên độ Mua - Bán",
       tooltip: "Biên độ chênh lệch giữa giá Bán ra và Mua vào",
-      tone: "amber",
-      valueClass: "text-amber-300",
     },
     {
       key: "change",
       label: "Biến Động 24H",
       value: `${up ? "+" : ""}${item.change_percent}%`,
       sub: `${item.change_amount >= 0 ? "+" : ""}${formatMoney(item.change_amount, item.unit)}`,
-      tone: "neutral",
       trend: up ? "up" : "down",
-      valueClass: up ? "text-emerald-400" : "text-red-400",
+      valueClass: up ? "text-(--status-positive)" : "text-(--status-negative)",
     },
   ];
 }
@@ -99,8 +77,8 @@ const COLUMNS: MarketColumn<GoldItem>[] = [
     align: "left",
     render: (item) => (
       <span className="flex items-center gap-2">
-        <Coins className="h-3.5 w-3.5 shrink-0 text-amber-400" aria-hidden="true" />
-        <span className="font-semibold text-slate-50">{item.name}</span>
+        <Coins className="h-3.5 w-3.5 shrink-0 text-(--action-primary)" aria-hidden="true" />
+        <span className="font-medium text-(--text-primary)">{item.name}</span>
       </span>
     ),
   },
@@ -109,7 +87,7 @@ const COLUMNS: MarketColumn<GoldItem>[] = [
     header: "Giá Mua",
     align: "right",
     render: (item) => (
-      <span className="font-semibold text-emerald-400">
+      <span className="font-medium tabular-nums text-(--text-primary)">
         {formatMoney(item.buy_price, item.unit)}
       </span>
     ),
@@ -119,7 +97,7 @@ const COLUMNS: MarketColumn<GoldItem>[] = [
     header: "Giá Bán",
     align: "right",
     render: (item) => (
-      <span className="font-semibold text-red-400">
+      <span className="font-medium tabular-nums text-(--text-primary)">
         {formatMoney(item.sell_price, item.unit)}
       </span>
     ),
@@ -130,7 +108,9 @@ const COLUMNS: MarketColumn<GoldItem>[] = [
     align: "right",
     className: "hidden md:table-cell",
     render: (item) => (
-      <span className="text-slate-400">{formatMoney(item.spread, item.unit)}</span>
+      <span className="tabular-nums text-(--text-secondary)">
+        {formatMoney(item.spread, item.unit)}
+      </span>
     ),
   },
   {
@@ -144,7 +124,9 @@ const COLUMNS: MarketColumn<GoldItem>[] = [
     header: "Đơn Vị",
     align: "center",
     className: "hidden lg:table-cell",
-    render: (item) => <span className="text-[11px] text-slate-500">{item.unit}</span>,
+    render: (item) => (
+      <span className="text-xs text-(--text-tertiary)">{item.unit}</span>
+    ),
   },
 ];
 
@@ -162,7 +144,6 @@ export default function GoldPage() {
 
   return (
     <MarketPage<GoldItem>
-      theme={THEME}
       icon={Coins}
       title="Bảng Giá Vàng & Kim Loại Quý"
       subtitle="Cập nhật trực tuyến SJC, PNJ, DOJI, Vàng 9999 & Vàng Thế Giới (XAU/USD)"
@@ -193,13 +174,13 @@ export default function GoldPage() {
       }
       chartSlot={
         historyLoading ? (
-          <Skeleton className="h-72 rounded-2xl bg-white/4" />
+          <Skeleton className="h-72 rounded-xl" />
         ) : history?.data && history.data.length > 0 ? (
           <InteractivePriceChart
             data={history.data}
             series={[
-              { key: "buy", label: "Giá Mua", color: "#10b981" },
-              { key: "sell", label: "Giá Bán", color: "#ef4444" },
+              { key: "buy", label: "Giá Mua", semanticColor: "positive" },
+              { key: "sell", label: "Giá Bán", semanticColor: "negative" },
             ]}
             timeframe={timeframe}
             onTimeframeChange={setTimeframe}
@@ -208,7 +189,7 @@ export default function GoldPage() {
             height={300}
           />
         ) : (
-          <Card className="flex h-72 items-center justify-center rounded-2xl border-white/8 bg-[#0c0c14] text-xs text-slate-500">
+          <Card className="flex h-72 items-center justify-center rounded-xl border border-(--border-default) bg-(--bg-surface) text-xs text-(--text-tertiary)">
             Không tìm thấy dữ liệu lịch sử giá
           </Card>
         )

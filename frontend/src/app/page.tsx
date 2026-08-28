@@ -33,14 +33,16 @@ import {
   Check,
   X,
   Trash2,
+  ArrowRight,
+  Database,
 } from "lucide-react";
 import { toast } from "sonner";
 
 const SUGGESTIONS = [
-  "Tóm tắt tin tức kinh tế hôm nay",
+  "Tóm tắt tin tức kinh tế tài chính hôm nay",
   "Tìm các bài báo về giá vàng trên CafeF",
   "Phân tích tình hình lãi suất ngân hàng hiện nay",
-  "Nhận định thị trường chứng khoán hôm nay",
+  "Nhận định diễn biến thị trường chứng khoán hôm nay",
 ];
 
 const MessageItem = memo(function MessageItem({
@@ -71,21 +73,22 @@ const MessageItem = memo(function MessageItem({
       className={`group flex gap-3 animate-fade-up ${!isModel ? "flex-row-reverse" : ""}`}
     >
       <div
-        className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-xs font-bold ${
+        className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-xs font-semibold ${
           isModel
-            ? "bg-linear-to-br from-violet-600 to-cyan-500 text-white shadow-md shadow-violet-500/25"
-            : "border border-white/10 bg-white/8 text-slate-200"
+            ? "bg-(--bg-selected) text-(--action-primary)"
+            : "bg-(--bg-subtle) text-(--text-secondary)"
         }`}
+        aria-hidden="true"
       >
-        {isModel ? <Sparkles className="h-4 w-4" /> : <User className="h-4 w-4" />}
+        {isModel ? <Sparkles className="h-3.5 w-3.5" /> : <User className="h-3.5 w-3.5" />}
       </div>
 
-      <div className="flex flex-col gap-1 max-w-[85%] md:max-w-[80%]">
+      <div className="flex flex-col gap-1.5 max-w-[88%] md:max-w-[80%]">
         <div
-          className={`relative rounded-2xl px-4 py-3 text-xs md:text-sm leading-relaxed break-words ${
+          className={`relative rounded-lg px-4 py-3 text-xs md:text-sm leading-relaxed break-words ${
             !isModel
-              ? "rounded-br-sm bg-linear-to-br from-violet-600 to-indigo-600 text-white shadow-md shadow-violet-500/20"
-              : "rounded-bl-sm border border-white/10 bg-[#0e0e18] text-slate-100 shadow-lg"
+              ? "rounded-tr-xs bg-(--action-primary) text-(--action-on-primary)"
+              : "rounded-tl-xs border border-(--border-default) bg-(--bg-surface) text-(--text-primary)"
           }`}
         >
           {isModel ? (
@@ -95,23 +98,33 @@ const MessageItem = memo(function MessageItem({
           )}
         </div>
 
-        {/* Copy action on model message */}
+        {/* Action strip on model message */}
         {isModel && (
-          <div className="flex items-center gap-2 px-1 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="flex items-center gap-2 px-1">
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
                   variant="ghost"
-                  size="icon"
+                  size="sm"
                   onClick={handleCopy}
-                  className="h-6 w-6 text-slate-500 hover:text-slate-200"
+                  className="h-6 px-1.5 text-[11px] text-(--text-tertiary) hover:text-(--text-primary) gap-1"
                   aria-label="Sao chép nội dung"
                 >
-                  {copied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+                  {copied ? (
+                    <>
+                      <Check className="h-3 w-3 text-(--status-positive)" />
+                      <span className="text-(--status-positive)">Đã sao chép</span>
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-3 w-3" />
+                      <span>Sao chép</span>
+                    </>
+                  )}
                 </Button>
               </TooltipTrigger>
               <TooltipContent side="bottom">
-                <p className="text-[10px]">{copied ? "Đã sao chép" : "Sao chép câu trả lời"}</p>
+                <p className="text-xs">Sao chép nội dung câu trả lời</p>
               </TooltipContent>
             </Tooltip>
           </div>
@@ -133,29 +146,50 @@ const MessageList = memo(function MessageList({
   return (
     <>
       {history.length === 0 && !loading ? (
-        <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 py-16 text-center animate-fade-up">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-linear-to-br from-violet-600 to-cyan-500 text-white shadow-xl shadow-violet-500/25">
-            <Sparkles className="h-7 w-7" />
-          </div>
-          <h1 className="text-xl md:text-2xl font-bold tracking-tight bg-linear-to-r from-white via-slate-100 to-violet-300 bg-clip-text text-transparent">
-            Xin chào! Tôi có thể giúp gì cho bạn?
-          </h1>
-          <p className="max-w-md text-xs md:text-sm leading-relaxed text-slate-400">
-            Tôi là trợ lý AI phân tích tài chính & tin tức, kết nối trực tiếp với cơ sở dữ liệu vector Qdrant và Google Gemini.
-          </p>
+        <div className="flex flex-1 items-center justify-center py-8">
+          <div className="grid w-full max-w-4xl grid-cols-1 md:grid-cols-2 gap-8 items-center rounded-xl border border-(--border-default) bg-(--bg-surface) p-6 md:p-8 animate-fade-up">
+            {/* Left Column: Greeting & Info */}
+            <div className="space-y-4">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-(--bg-selected) text-(--action-primary)">
+                <Sparkles className="h-5 w-5" />
+              </div>
+              <div className="space-y-1.5">
+                <h1 className="text-lg md:text-xl font-bold tracking-tight text-(--text-primary)">
+                  Trợ lý phân tích tài chính
+                </h1>
+                <p className="text-xs md:text-sm leading-relaxed text-(--text-secondary)">
+                  Hỗ trợ tra cứu dữ liệu thị trường, phân tích xu hướng kinh tế vĩ mô và đối chiếu bài báo từ kho tin tức tài chính.
+                </p>
+              </div>
 
-          <div className="mt-4 flex flex-wrap justify-center gap-2 max-w-xl">
-            {SUGGESTIONS.map((s) => (
-              <Button
-                key={s}
-                variant="outline"
-                size="sm"
-                className="rounded-xl border-white/10 bg-white/4 text-xs text-slate-300 hover:border-violet-500/50 hover:bg-violet-600/10 hover:text-white transition-all duration-200"
-                onClick={() => onSuggestionClick(s)}
-              >
-                {s}
-              </Button>
-            ))}
+              <div className="flex flex-wrap items-center gap-2 pt-2 text-[11px] text-(--text-tertiary)">
+                <span className="inline-flex items-center gap-1 rounded-md bg-(--bg-subtle) px-2 py-1">
+                  <Database className="h-3 w-3 text-(--action-primary)" />
+                  Qdrant Vector DB
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-md bg-(--bg-subtle) px-2 py-1">
+                  <Sparkles className="h-3 w-3 text-(--action-primary)" />
+                  Google Gemini RAG
+                </span>
+              </div>
+            </div>
+
+            {/* Right Column: Suggestion Prompts */}
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-(--text-secondary) mb-2">
+                Gợi ý câu hỏi bắt đầu:
+              </p>
+              {SUGGESTIONS.map((s) => (
+                <button
+                  key={s}
+                  onClick={() => onSuggestionClick(s)}
+                  className="group flex w-full items-center justify-between gap-3 rounded-lg border border-(--border-default) bg-(--bg-surface) p-3 text-left text-xs text-(--text-secondary) hover:border-(--border-strong) hover:bg-(--bg-subtle) hover:text-(--text-primary) transition-colors cursor-pointer"
+                >
+                  <span className="leading-snug">{s}</span>
+                  <ArrowRight className="h-3.5 w-3.5 shrink-0 text-(--text-tertiary) group-hover:text-(--action-primary) transition-colors" />
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       ) : (
@@ -166,15 +200,15 @@ const MessageList = memo(function MessageList({
 
           {loading && (
             <div className="flex gap-3 animate-fade-up" id="typing-indicator">
-              <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-violet-600 to-cyan-500 text-white shadow-md shadow-violet-500/25">
-                <Sparkles className="h-4 w-4 animate-spin" />
+              <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-(--bg-selected) text-(--action-primary)">
+                <Sparkles className="h-3.5 w-3.5 animate-spin" />
               </div>
-              <div className="max-w-[75%] rounded-2xl rounded-bl-sm border border-white/10 bg-[#0e0e18] px-4 py-3 text-xs text-slate-300">
-                <div className="flex items-center gap-1.5 py-1">
-                  <span className="h-2 w-2 rounded-full bg-violet-500 animate-blink" />
-                  <span className="h-2 w-2 rounded-full bg-violet-500 animate-blink [animation-delay:0.18s]" />
-                  <span className="h-2 w-2 rounded-full bg-violet-500 animate-blink [animation-delay:0.36s]" />
-                  <span className="text-xs text-slate-400 ml-2">Đang suy nghĩ...</span>
+              <div className="rounded-lg rounded-tl-xs border border-(--border-default) bg-(--bg-surface) px-4 py-2.5 text-xs text-(--text-secondary)">
+                <div className="flex items-center gap-1.5 py-0.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-(--action-primary) animate-blink" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-(--action-primary) animate-blink [animation-delay:0.18s]" />
+                  <span className="h-1.5 w-1.5 rounded-full bg-(--action-primary) animate-blink [animation-delay:0.36s]" />
+                  <span className="text-xs text-(--text-tertiary) ml-2">Đang suy nghĩ...</span>
                 </div>
               </div>
             </div>
@@ -270,18 +304,18 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex h-full flex-col bg-[#07070a] text-slate-100">
+    <div className="flex h-full flex-col bg-(--bg-canvas) text-(--text-primary)">
       {/* Header */}
-      <header className="flex shrink-0 items-center justify-between border-b border-white/8 px-6 py-3.5 bg-[#07070a]/90 backdrop-blur-xl">
+      <header className="flex shrink-0 items-center justify-between border-b border-(--border-default) bg-(--bg-surface) px-6 py-3">
         <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-linear-to-br from-violet-600 to-cyan-500 text-white shadow-md shadow-violet-500/25 animate-pulse-glow">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-(--bg-selected) text-(--action-primary)">
             <Sparkles className="h-4 w-4" />
           </div>
           <div>
-            <p className="text-sm font-bold bg-linear-to-r from-white via-slate-200 to-violet-300 bg-clip-text text-transparent">
-              Trợ Lý AI Thông Minh
-            </p>
-            <p className="text-[10px] text-slate-500">Google Gemini & Qdrant RAG</p>
+            <h1 className="text-sm font-bold text-(--text-primary) leading-tight">
+              Trợ lý phân tích
+            </h1>
+            <p className="text-[11px] text-(--text-tertiary)">Nguồn dữ liệu: Qdrant · Google Gemini</p>
           </div>
         </div>
 
@@ -293,9 +327,9 @@ export default function ChatPage() {
                   variant="outline"
                   size="sm"
                   onClick={() => setContextDrawerOpen(true)}
-                  className="gap-1.5 text-xs text-violet-300 border-violet-500/30 bg-violet-950/20 hover:bg-violet-900/30"
+                  className="gap-1.5 text-xs text-(--text-secondary) hover:text-(--text-primary)"
                 >
-                  <Bookmark className="h-3.5 w-3.5 text-violet-400" />
+                  <Bookmark className="h-3.5 w-3.5 text-(--action-primary)" />
                   <span>
                     {activePinned.length}/{pinnedArticles.length} Context
                   </span>
@@ -313,7 +347,7 @@ export default function ChatPage() {
                 variant="ghost"
                 size="sm"
                 onClick={() => setIsPrefModalOpen(true)}
-                className="gap-1 text-xs text-slate-300 hover:text-white"
+                className="gap-1.5 text-xs text-(--text-secondary) hover:text-(--text-primary)"
                 aria-label="Cài đặt Context & Persona"
               >
                 <SlidersHorizontal className="h-3.5 w-3.5" />
@@ -331,7 +365,7 @@ export default function ChatPage() {
                 variant="ghost"
                 size="icon"
                 onClick={createNewSession}
-                className="h-8 w-8 text-slate-400 hover:text-white"
+                className="h-8 w-8 text-(--text-secondary) hover:text-(--text-primary)"
                 aria-label="Tạo cuộc hội thoại mới"
               >
                 <RotateCcw className="h-4 w-4" />
@@ -347,8 +381,8 @@ export default function ChatPage() {
       {/* Messages View */}
       <main className="flex flex-1 flex-col gap-4 overflow-y-auto px-4 md:px-8 py-6" id="messages-area">
         {loadingHistory ? (
-          <div className="flex flex-1 items-center justify-center py-20 text-slate-500">
-            <span className="h-6 w-6 animate-spin rounded-full border-2 border-white/20 border-t-violet-500" />
+          <div className="flex flex-1 items-center justify-center py-20 text-(--text-tertiary)">
+            <span className="h-6 w-6 animate-spin rounded-full border-2 border-(--border-default) border-t-(--action-primary)" />
           </div>
         ) : (
           <MessageList
@@ -364,21 +398,21 @@ export default function ChatPage() {
       </main>
 
       {/* Input Area */}
-      <div className="shrink-0 border-t border-white/8 px-4 md:px-8 pb-5 pt-3 bg-[#07070a]">
+      <div className="shrink-0 border-t border-(--border-default) bg-(--bg-surface) px-4 md:px-8 pb-5 pt-3">
         {error && (
-          <div className="mb-2.5 flex items-center gap-2 rounded-xl border border-red-500/25 bg-red-500/10 px-3.5 py-2.5 text-xs text-red-300">
-            <AlertCircle className="h-4 w-4 shrink-0 text-red-400" />
+          <div className="mb-2.5 flex items-center gap-2 rounded-lg border border-[color-mix(in_srgb,var(--status-negative)_30%,transparent)] bg-[color-mix(in_srgb,var(--status-negative)_10%,transparent)] px-3.5 py-2.5 text-xs text-(--status-negative)">
+            <AlertCircle className="h-4 w-4 shrink-0 text-(--status-negative)" />
             <span>{error}</span>
           </div>
         )}
 
-        {/* Pinned Context Banner above Input */}
+        {/* Evidence / Pinned Context Tray above Input */}
         {pinnedArticles.length > 0 && (
-          <Card className="mb-3 flex items-center justify-between rounded-xl border-violet-500/30 bg-violet-950/20 p-2 px-3.5">
+          <Card className="mb-3 flex items-center justify-between rounded-lg border border-(--border-default) bg-(--bg-subtle) p-2 px-3.5">
             <div className="flex flex-wrap items-center gap-1.5 overflow-hidden">
-              <span className="text-[11px] font-bold text-violet-300 flex items-center gap-1 shrink-0">
-                <Bookmark className="h-3 w-3" />
-                Context gửi kèm ({activePinned.length} bài):
+              <span className="text-[11px] font-semibold text-(--text-secondary) flex items-center gap-1 shrink-0">
+                <Bookmark className="h-3 w-3 text-(--action-primary)" />
+                Ngữ cảnh gửi kèm ({activePinned.length} bài):
               </span>
               {pinnedArticles.map((art) => {
                 const key = art.url_hash || art.url || "";
@@ -387,15 +421,18 @@ export default function ChatPage() {
                   <Badge
                     key={key}
                     variant={isActive ? "default" : "secondary"}
-                    className={`gap-1 text-[10px] py-0.5 px-2 font-normal ${
-                      isActive ? "bg-violet-600/30 text-violet-200 border-violet-500/40" : "opacity-50 line-through"
+                    className={`gap-1 text-[10px] py-0.5 px-2 font-normal rounded-md ${
+                      isActive
+                        ? "bg-(--bg-surface) text-(--text-primary) border border-(--border-default)"
+                        : "opacity-50 line-through bg-(--bg-subtle) text-(--text-tertiary)"
                     }`}
                   >
                     <span className="max-w-[130px] truncate">{art.title}</span>
                     <button
                       onClick={() => removePinnedArticle(key)}
-                      className="text-slate-400 hover:text-red-400 ml-1 cursor-pointer"
+                      className="text-(--text-tertiary) hover:text-(--status-negative) ml-1 cursor-pointer"
                       title="Gỡ bài báo này"
+                      aria-label={`Gỡ bài báo ${art.title}`}
                     >
                       <X className="h-3 w-3" />
                     </button>
@@ -409,16 +446,16 @@ export default function ChatPage() {
                 variant="link"
                 size="sm"
                 onClick={() => setContextDrawerOpen(true)}
-                className="h-auto p-0 text-[11px] text-violet-400 hover:underline"
+                className="h-auto p-0 text-[11px] text-(--action-primary) hover:underline"
               >
                 Quản lý
               </Button>
-              <span className="text-slate-600 text-xs">•</span>
+              <span className="text-(--border-default) text-xs">•</span>
               <Button
                 variant="link"
                 size="sm"
                 onClick={clearPinnedArticles}
-                className="h-auto p-0 text-[11px] text-slate-400 hover:text-red-400"
+                className="h-auto p-0 text-[11px] text-(--text-tertiary) hover:text-(--status-negative)"
               >
                 <Trash2 className="h-3 w-3 mr-0.5" />
                 Xóa hết
@@ -429,7 +466,7 @@ export default function ChatPage() {
 
         {/* Input Form */}
         <form
-          className="flex items-center gap-2.5 rounded-2xl border border-white/10 bg-white/5 p-2 pl-4 transition-all focus-within:border-violet-500 focus-within:shadow-[0_0_0_3px_rgba(139,92,246,0.15)]"
+          className="flex items-center gap-2.5 rounded-lg border border-(--border-default) bg-(--bg-canvas) p-2 pl-3.5 transition-all focus-within:border-(--border-strong) focus-within:ring-2 focus-within:ring-(--focus-ring)/20"
           onSubmit={(e) => {
             e.preventDefault();
             handleSubmit();
@@ -439,33 +476,34 @@ export default function ChatPage() {
           <textarea
             ref={textareaRef}
             id="chat-input"
-            className="min-h-6 max-h-36 flex-1 resize-none border-none bg-transparent p-0 text-xs md:text-sm leading-relaxed text-slate-100 outline-none placeholder:text-slate-500"
+            className="min-h-6 max-h-36 flex-1 resize-none border-none bg-transparent p-0 text-xs md:text-sm leading-relaxed text-(--text-primary) outline-none placeholder:text-(--text-tertiary)"
             rows={1}
-            placeholder="Nhập tin nhắn… (Enter gửi · Shift+Enter xuống dòng)"
+            placeholder="Nhập tin nhắn… (Enter để gửi · Shift+Enter xuống dòng)"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             disabled={loading || loadingHistory}
+            aria-label="Nội dung tin nhắn gửi tới trợ lý AI"
           />
 
           <Button
             type="submit"
             id="send-button"
-            variant="gradient"
+            variant="default"
             size="icon"
-            className="h-9 w-9 shrink-0 rounded-xl"
+            className="h-8 w-8 shrink-0 rounded-lg"
             disabled={!input.trim() || loading || loadingHistory}
             aria-label="Gửi tin nhắn"
           >
             {loading ? (
-              <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />
+              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current/30 border-t-current" />
             ) : (
-              <Send className="h-4 w-4" />
+              <Send className="h-3.5 w-3.5" />
             )}
           </Button>
         </form>
 
-        <p className="mt-2 text-center text-[10px] text-slate-600">
+        <p className="mt-2 text-center text-[11px] text-(--text-tertiary)">
           Google Gemini có thể mắc lỗi. Vui lòng kiểm tra thông tin quan trọng trước khi ra quyết định đầu tư.
         </p>
       </div>

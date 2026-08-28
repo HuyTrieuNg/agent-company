@@ -12,8 +12,10 @@ import {
   BookmarkCheck,
   ExternalLink,
   Calendar,
+  Newspaper,
 } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 function timeAgo(dateStr: string | undefined): string {
   if (!dateStr) return "";
@@ -70,56 +72,57 @@ function StockNewsCard({
   return (
     <Card
       id={`stock-news-${index}`}
-      className={`group relative flex flex-col justify-between transition-all duration-200 hover:-translate-y-0.5 ${
+      className={cn(
+        "group relative flex flex-col justify-between rounded-xl border transition-colors duration-150",
         pinned
-          ? "border-violet-500/50 bg-gradient-to-b from-violet-950/20 to-[#0d0d16] shadow-md shadow-violet-500/10"
-          : "border-white/8 bg-white/4 hover:border-white/20 hover:bg-white/6"
-      }`}
+          ? "border-(--action-primary) bg-(--bg-selected)/25"
+          : "border-(--border-default) bg-(--bg-surface) hover:border-(--border-strong)"
+      )}
     >
       <CardHeader className="p-4 pb-2">
-        <div className="flex items-center justify-between gap-2 text-[11px] mb-1.5">
+        <div className="flex items-center justify-between gap-2 text-[11px] mb-2">
           <div className="flex items-center gap-1.5 flex-wrap">
             {article.site && (
-              <Badge variant="secondary" className="bg-white/8 text-slate-300 font-semibold uppercase text-[10px]">
+              <Badge variant="secondary" className="text-[10px] font-semibold uppercase">
                 {article.site}
               </Badge>
             )}
-            <Badge variant="cyan" className="text-[10px]">
+            <Badge variant="secondary" className="text-[10px] font-mono">
               {symbol}
             </Badge>
           </div>
 
           {article.published_at && (
-            <span className="flex items-center gap-1 text-[10px] text-slate-500">
-              <Calendar className="h-3 w-3" />
+            <span className="flex items-center gap-1 text-[11px] text-(--text-tertiary)">
+              <Calendar className="h-3 w-3" aria-hidden="true" />
               {timeAgo(article.published_at)}
             </span>
           )}
         </div>
 
-        <CardTitle className="text-sm font-semibold text-slate-100 group-hover:text-violet-300 transition-colors line-clamp-2 leading-snug">
+        <CardTitle className="text-sm font-semibold text-(--text-primary) group-hover:text-(--action-primary) transition-colors line-clamp-2 leading-snug">
           {article.title}
         </CardTitle>
       </CardHeader>
 
       <CardContent className="p-4 pt-0 flex-1">
         {article.sapo && article.sapo !== article.title && (
-          <p className="text-xs text-slate-400 leading-relaxed line-clamp-3">
+          <p className="text-xs text-(--text-secondary) leading-relaxed line-clamp-3">
             {article.sapo}
           </p>
         )}
       </CardContent>
 
-      <CardFooter className="p-4 pt-2 border-t border-white/5 flex items-center justify-between gap-2">
+      <CardFooter className="p-4 pt-2.5 border-t border-(--border-default) flex items-center justify-between gap-2">
         {article.url ? (
           <a
             href={article.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-xs text-slate-400 hover:text-white transition-colors"
+            className="inline-flex items-center gap-1 text-xs font-medium text-(--action-primary) hover:underline"
           >
-            <span>Bài gốc</span>
-            <ExternalLink className="h-3 w-3" />
+            <span>Xem nguồn</span>
+            <ExternalLink className="h-3 w-3" aria-hidden="true" />
           </a>
         ) : (
           <div />
@@ -129,20 +132,16 @@ function StockNewsCard({
           variant={pinned ? "default" : "secondary"}
           size="sm"
           onClick={handleTogglePin}
-          className={`gap-1.5 text-xs font-semibold ${
-            pinned
-              ? "bg-violet-600 text-white shadow-md shadow-violet-500/25"
-              : "text-slate-300 hover:bg-violet-600/20 hover:text-violet-300"
-          }`}
+          className="gap-1.5 text-xs font-medium"
         >
           {pinned ? (
             <>
-              <BookmarkCheck className="h-3.5 w-3.5" />
+              <BookmarkCheck className="h-3.5 w-3.5" aria-hidden="true" />
               <span>Đã ghim</span>
             </>
           ) : (
             <>
-              <Bookmark className="h-3.5 w-3.5" />
+              <Bookmark className="h-3.5 w-3.5" aria-hidden="true" />
               <span>+ Ghim Context</span>
             </>
           )}
@@ -161,15 +160,15 @@ export default function NewsTab({
 }) {
   if (loading) {
     return (
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="rounded-2xl border border-white/10 bg-white/3 p-4 space-y-2.5">
+          <div key={i} className="rounded-xl border border-(--border-default) bg-(--bg-surface) p-4 space-y-2.5">
             <div className="flex justify-between">
-              <Skeleton className="h-4 w-20" />
-              <Skeleton className="h-4 w-16" />
+              <Skeleton className="h-4 w-20 rounded" />
+              <Skeleton className="h-4 w-16 rounded" />
             </div>
-            <Skeleton className="h-5 w-full" />
-            <Skeleton className="h-10 w-full" />
+            <Skeleton className="h-5 w-full rounded" />
+            <Skeleton className="h-10 w-full rounded" />
           </div>
         ))}
       </div>
@@ -178,23 +177,25 @@ export default function NewsTab({
 
   if (!data || data.data.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-slate-500 space-y-2">
-        <span className="text-4xl">📰</span>
+      <Card className="flex flex-col items-center justify-center py-16 border border-(--border-default) bg-(--bg-surface) text-(--text-tertiary) space-y-2 rounded-xl">
+        <Newspaper className="h-8 w-8 text-(--text-tertiary)" aria-hidden="true" />
         <p className="text-xs">Không có tin tức liên quan đến mã chứng khoán này</p>
-      </div>
+      </Card>
     );
   }
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+        <h3 className="text-xs font-semibold uppercase tracking-wider text-(--text-secondary)">
           Tin tức thị trường — Mã {data.symbol}
         </h3>
-        <span className="text-xs text-slate-500">{data.count} bài viết</span>
+        <Badge variant="secondary" className="text-xs text-(--text-secondary)">
+          {data.count} bài viết
+        </Badge>
       </div>
 
-      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         {data.data.map((item, i) => (
           <StockNewsCard key={i} item={item} index={i} symbol={data.symbol} />
         ))}

@@ -9,6 +9,8 @@ import {
   TooltipTrigger,
   TooltipContent,
 } from "@/components/ui/tooltip";
+import { Building2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 function fmt(val: number | null | undefined, digits = 2): string {
   if (val == null || isNaN(Number(val))) return "—";
@@ -48,19 +50,19 @@ export default function OverviewTab({
   if (loading) {
     return (
       <div className="flex flex-col gap-6">
-        <Card className="p-5">
+        <Card className="border border-(--border-default) bg-(--bg-surface) p-5 rounded-xl">
           <div className="flex items-start gap-4">
-            <Skeleton className="h-14 w-14 rounded-2xl" />
+            <Skeleton className="h-12 w-12 rounded-lg" />
             <div className="flex-1 space-y-2">
-              <Skeleton className="h-6 w-40" />
-              <Skeleton className="h-4 w-60" />
-              <Skeleton className="h-12 w-full mt-2" />
+              <Skeleton className="h-6 w-40 rounded-md" />
+              <Skeleton className="h-4 w-60 rounded-md" />
+              <Skeleton className="h-12 w-full mt-2 rounded-md" />
             </div>
           </div>
         </Card>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {Array.from({ length: 12 }).map((_, i) => (
-            <Skeleton key={i} className="h-20 rounded-2xl" />
+            <Skeleton key={i} className="h-20 rounded-xl" />
           ))}
         </div>
       </div>
@@ -69,10 +71,10 @@ export default function OverviewTab({
 
   if (!overview) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 text-slate-500">
-        <span className="text-4xl mb-3">📊</span>
-        <p>Nhập mã chứng khoán để xem thông tin</p>
-      </div>
+      <Card className="flex flex-col items-center justify-center py-20 border border-(--border-default) bg-(--bg-surface) rounded-xl text-(--text-tertiary)">
+        <Building2 className="h-8 w-8 mb-2 text-(--text-tertiary)" aria-hidden="true" />
+        <p className="text-xs">Nhập mã chứng khoán để xem thông tin</p>
+      </Card>
     );
   }
 
@@ -84,9 +86,9 @@ export default function OverviewTab({
       label: "Thay đổi %",
       value:
         overview.price_change_pct != null
-          ? `${isPositive ? "+" : ""}${fmt(overview.price_change_pct)}%`
+          ? `${isPositive ? "+" : "−"}${fmt(Math.abs(overview.price_change_pct))}%`
           : "—",
-      color: isPositive ? "#10b981" : "#ef4444",
+      colorClass: isPositive ? "text-(--status-positive)" : "text-(--status-negative)",
     },
     { label: "Vốn hóa thị trường", value: fmtMarketCap(overview.market_cap) },
     { label: "P/E", value: fmt(overview.pe_ratio) },
@@ -103,30 +105,30 @@ export default function OverviewTab({
   return (
     <div className="flex flex-col gap-6">
       {/* Company Info */}
-      <Card className="border-white/8 bg-white/4 p-5 backdrop-blur-xl">
+      <Card className="border border-(--border-default) bg-(--bg-surface) p-5 rounded-xl shadow-xs">
         <div className="flex items-start gap-4">
-          <div
-            className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-2xl font-extrabold text-white shadow-lg bg-linear-to-br from-violet-600 to-cyan-500 shadow-violet-500/25"
-          >
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border border-(--border-default) bg-(--bg-subtle) text-lg font-bold text-(--action-primary)">
             {overview.symbol.slice(0, 2)}
           </div>
           <div className="flex-1">
             <div className="flex flex-wrap items-center gap-2 mb-1">
-              <h2 className="text-xl font-extrabold text-slate-50 tracking-tight">{overview.symbol}</h2>
+              <h2 className="text-xl font-bold tracking-tight text-(--text-primary)">
+                {overview.symbol}
+              </h2>
               {overview.exchange && (
-                <Badge variant="secondary" className="text-[10px] font-bold uppercase tracking-wider">
+                <Badge variant="secondary" className="text-[10px] font-semibold uppercase tracking-wider font-mono">
                   {overview.exchange}
                 </Badge>
               )}
               {overview.industry && (
-                <Badge variant="cyan" className="text-[11px] font-medium">
+                <Badge variant="secondary" className="text-[10px] font-medium">
                   {overview.industry}
                 </Badge>
               )}
             </div>
-            <p className="text-sm font-medium text-slate-300">{overview.company_name}</p>
+            <p className="text-sm font-medium text-(--text-secondary)">{overview.company_name}</p>
             {overview.description && (
-              <p className="mt-2 text-xs md:text-sm text-slate-400 leading-relaxed line-clamp-3">
+              <p className="mt-2 text-xs text-(--text-secondary) leading-relaxed line-clamp-3">
                 {overview.description}
               </p>
             )}
@@ -136,26 +138,28 @@ export default function OverviewTab({
 
       {/* Metrics Grid */}
       <div>
-        <h3 className="mb-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">
+        <h3 className="mb-3 text-xs font-semibold uppercase tracking-wider text-(--text-secondary)">
           Chỉ số cơ bản
         </h3>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {metrics.map((m) => (
             <Tooltip key={m.label}>
               <TooltipTrigger asChild>
-                <Card className="group flex flex-col justify-between p-4 border-white/8 bg-white/4 transition-all duration-200 hover:border-violet-500/30 hover:bg-white/6 cursor-help">
-                  <span className="text-xs text-slate-400">{m.label}</span>
+                <Card className="group flex flex-col justify-between p-4 border border-(--border-default) bg-(--bg-surface) rounded-xl hover:border-(--border-strong) transition-colors cursor-help shadow-xs">
+                  <span className="text-xs font-medium text-(--text-secondary)">{m.label}</span>
                   <span
-                    className="mt-1 text-base md:text-lg font-bold text-slate-100 group-hover:text-white transition-colors"
-                    style={m.color ? { color: m.color } : undefined}
+                    className={cn(
+                      "mt-1.5 text-base md:text-lg font-bold tabular-nums text-(--text-primary)",
+                      m.colorClass
+                    )}
                   >
                     {m.value}
                   </span>
                 </Card>
               </TooltipTrigger>
               <TooltipContent side="bottom">
-                <p className="font-semibold text-violet-300">{m.label}</p>
-                <p className="text-[11px] text-slate-300">{METRIC_TIPS[m.label] || m.label}</p>
+                <p className="font-semibold text-(--action-primary) text-xs">{m.label}</p>
+                <p className="text-xs text-(--text-secondary)">{METRIC_TIPS[m.label] || m.label}</p>
               </TooltipContent>
             </Tooltip>
           ))}
@@ -164,4 +168,3 @@ export default function OverviewTab({
     </div>
   );
 }
-

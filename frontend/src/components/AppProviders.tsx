@@ -3,6 +3,7 @@
 import React, { useEffect } from "react";
 import QueryProvider from "@/providers/QueryProvider";
 import Sidebar from "@/components/Sidebar";
+import MobileHeader from "@/components/MobileHeader";
 import ContextManagerDrawer from "@/components/context/ContextManagerDrawer";
 import ArticleDetailSheet from "@/components/news/ArticleDetailSheet";
 import UserPreferenceModal from "@/components/UserPreferenceModal";
@@ -41,15 +42,16 @@ export default function AppProviders({ children }: { children: React.ReactNode }
   }, []);
 
   return (
-    <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} disableTransitionOnChange>
+    <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} disableTransitionOnChange>
       <QueryProvider>
         <TooltipProvider delayDuration={200}>
-          <div className="flex h-screen overflow-hidden bg-[#07070a] text-slate-100 antialiased">
+          <div className="flex h-screen overflow-hidden bg-(--bg-canvas) text-(--text-primary) antialiased">
             <Sidebar />
+            <MobileHeader />
             {/* Main content — offset by sidebar width */}
             <div
               className={cn(
-                "flex flex-1 flex-col overflow-y-auto pl-15 transition-[padding] duration-200 ease-in-out",
+                "flex flex-1 flex-col overflow-y-auto pl-0 pt-11 md:pl-15 md:pt-0 transition-[padding] duration-200 ease-in-out",
                 !isSidebarCollapsed && "md:pl-60"
               )}
             >
@@ -62,4 +64,3 @@ export default function AppProviders({ children }: { children: React.ReactNode }
     </ThemeProvider>
   );
 }
-

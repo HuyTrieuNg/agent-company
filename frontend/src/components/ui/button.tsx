@@ -4,30 +4,30 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-xl text-xs font-semibold transition-all focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-violet-500 disabled:pointer-events-none disabled:opacity-40 cursor-pointer select-none",
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-xs font-semibold transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus-ring) focus-visible:ring-offset-2 focus-visible:ring-offset-(--bg-canvas) disabled:pointer-events-none disabled:opacity-40 cursor-pointer select-none",
   {
     variants: {
       variant: {
         default:
-          "bg-violet-600 text-white shadow-md shadow-violet-500/20 hover:bg-violet-500 active:scale-[0.98]",
+          "bg-(--action-primary) text-(--action-on-primary) hover:bg-(--action-primary-hover)",
         gradient:
-          "bg-linear-to-r from-violet-600 via-indigo-600 to-cyan-500 text-white shadow-lg shadow-violet-500/25 hover:brightness-110 active:scale-[0.98]",
+          "bg-(--action-primary) text-(--action-on-primary) hover:bg-(--action-primary-hover)",
         destructive:
-          "bg-red-500/15 text-red-400 border border-red-500/30 hover:bg-red-500/25 hover:text-red-300",
+          "border border-[color-mix(in_srgb,var(--status-negative)_32%,transparent)] bg-[color-mix(in_srgb,var(--status-negative)_10%,transparent)] text-(--status-negative) hover:bg-[color-mix(in_srgb,var(--status-negative)_16%,transparent)]",
         outline:
-          "border border-white/10 bg-white/4 text-slate-200 hover:bg-white/10 hover:border-white/20 hover:text-slate-100",
+          "border border-(--border-default) bg-(--bg-surface) text-(--text-secondary) hover:border-(--border-strong) hover:bg-(--bg-subtle) hover:text-(--text-primary)",
         secondary:
-          "bg-white/10 text-slate-200 hover:bg-white/15 hover:text-slate-100",
+          "bg-(--bg-subtle) text-(--text-secondary) hover:bg-(--bg-selected) hover:text-(--text-primary)",
         ghost:
-          "text-slate-400 hover:bg-white/8 hover:text-slate-100",
+          "text-(--text-secondary) hover:bg-(--bg-subtle) hover:text-(--text-primary)",
         link:
-          "text-violet-400 underline-offset-4 hover:underline",
+          "text-(--action-primary) underline-offset-4 hover:underline",
       },
       size: {
         default: "h-9 px-4 py-2",
-        sm: "h-7 rounded-lg px-2.5 text-[11px]",
-        lg: "h-11 rounded-2xl px-6 text-sm",
-        icon: "h-8 w-8 rounded-lg",
+        sm: "h-8 px-2.5 text-[11px]",
+        lg: "h-11 rounded-lg px-6 text-sm",
+        icon: "h-9 w-9 p-0",
       },
     },
     defaultVariants: {

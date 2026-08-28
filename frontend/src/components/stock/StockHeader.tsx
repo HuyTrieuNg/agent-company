@@ -44,16 +44,16 @@ export default function StockHeader({
 
   if (loading) {
     return (
-      <div className="shrink-0 border-b border-white/8 px-6 py-4">
+      <div className="shrink-0 border-b border-(--border-default) bg-(--bg-surface) px-6 py-4">
         <div className="flex items-center gap-4">
-          <Skeleton className="h-11 w-11 rounded-2xl" />
+          <Skeleton className="h-10 w-10 rounded-lg" />
           <div className="space-y-2">
-            <Skeleton className="h-6 w-32 rounded-lg" />
-            <Skeleton className="h-4 w-48 rounded-lg" />
+            <Skeleton className="h-6 w-32 rounded-md" />
+            <Skeleton className="h-4 w-48 rounded-md" />
           </div>
           <div className="ml-auto hidden md:flex gap-2">
             {[1, 2, 3, 4, 5].map((i) => (
-              <Skeleton key={i} className="h-12 w-20 rounded-xl" />
+              <Skeleton key={i} className="h-12 w-20 rounded-lg" />
             ))}
           </div>
         </div>
@@ -75,72 +75,68 @@ export default function StockHeader({
   ];
 
   return (
-    <div className="shrink-0 border-b border-white/8 bg-gradient-to-r from-[#0d0d16] to-[#0a0a0f] px-6 py-4">
-      <div className="flex flex-wrap items-start gap-4">
+    <div className="shrink-0 border-b border-(--border-default) bg-(--bg-surface) px-6 py-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         {/* Symbol & Name */}
-        <div className="flex items-center gap-3">
-          <div
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-lg font-extrabold text-white shadow-lg bg-linear-to-br from-violet-600 to-cyan-500 shadow-violet-500/25"
-          >
+        <div className="flex items-center gap-3.5">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-(--border-default) bg-(--bg-subtle) text-sm font-bold text-(--action-primary)">
             {overview.symbol.slice(0, 2)}
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <span className="text-xl font-extrabold text-slate-50 tracking-tight">
+              <span className="text-xl font-bold tracking-tight text-(--text-primary)">
                 {overview.symbol}
               </span>
               {overview.exchange && (
-                <Badge variant="secondary" className="text-[10px] uppercase font-bold tracking-wider">
+                <Badge variant="secondary" className="text-[10px] font-semibold uppercase tracking-wider font-mono">
                   {overview.exchange}
                 </Badge>
               )}
+              {overview.industry && (
+                <Badge variant="secondary" className="text-[10px] font-medium">
+                  {overview.industry}
+                </Badge>
+              )}
             </div>
-            <div className="text-xs text-slate-400 mt-0.5 max-w-[200px] truncate">
+            <div className="text-xs text-(--text-secondary) mt-0.5 max-w-xs truncate">
               {overview.company_name}
             </div>
-            {overview.industry && (
-              <Badge variant="cyan" className="mt-1 text-[10px] font-medium py-0 h-4">
-                {overview.industry}
-              </Badge>
-            )}
           </div>
         </div>
 
-        {/* Price */}
-        <div className="flex items-baseline gap-2">
-          <span className="text-3xl font-extrabold text-slate-50 tracking-tight" id="stock-price">
+        {/* Price Strip */}
+        <div className="flex items-baseline gap-2.5">
+          <span className="text-3xl font-bold tabular-nums tracking-tight text-(--text-primary)" id="stock-price">
             {fmt(overview.current_price, 0)}
           </span>
           {overview.price_change != null && (
             <Badge
               variant={isPositive ? "success" : "destructive"}
-              className="text-xs font-bold px-2.5 py-1 gap-1"
+              className="text-xs font-semibold px-2 py-0.5 gap-1 tabular-nums"
               id="stock-change"
             >
-              <span>{isPositive ? "▲" : "▼"}</span>
+              <span>{isPositive ? "+" : "−"}</span>
               <span>{fmt(Math.abs(overview.price_change))}</span>
               {overview.price_change_pct != null && (
-                <span>({fmt(Math.abs(overview.price_change_pct), 2)}%)</span>
+                <span>({isPositive ? "+" : "−"}{fmt(Math.abs(overview.price_change_pct), 2)}%)</span>
               )}
             </Badge>
           )}
         </div>
 
         {/* Metrics grid with Tooltips */}
-        <div className="ml-auto flex flex-wrap gap-2">
+        <div className="ml-auto hidden xl:flex flex-wrap gap-2">
           {metrics.map((m) => (
             <Tooltip key={m.label}>
               <TooltipTrigger asChild>
-                <div
-                  className="rounded-xl border border-white/8 bg-white/4 px-3 py-1.5 text-center min-w-[70px] hover:border-violet-500/30 transition-colors cursor-help"
-                >
-                  <div className="text-[10px] text-slate-500 mb-0.5">{m.label}</div>
-                  <div className="text-xs font-bold text-slate-100">{m.value}</div>
+                <div className="rounded-lg border border-(--border-default) bg-(--bg-subtle) px-3 py-1.5 text-center min-w-[72px] hover:border-(--border-strong) transition-colors cursor-help">
+                  <div className="text-[10px] text-(--text-secondary) mb-0.5 font-medium">{m.label}</div>
+                  <div className="text-xs font-semibold tabular-nums text-(--text-primary)">{m.value}</div>
                 </div>
               </TooltipTrigger>
               <TooltipContent side="bottom">
-                <p className="font-semibold text-violet-300">{m.label}</p>
-                <p className="text-[11px] text-slate-300">{METRIC_TIPS[m.label] || m.label}</p>
+                <p className="font-semibold text-(--action-primary) text-xs">{m.label}</p>
+                <p className="text-xs text-(--text-secondary)">{METRIC_TIPS[m.label] || m.label}</p>
               </TooltipContent>
             </Tooltip>
           ))}
@@ -149,4 +145,3 @@ export default function StockHeader({
     </div>
   );
 }
-
