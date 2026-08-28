@@ -1,7 +1,6 @@
-"""Core module containing configuration, logging, and application container."""
+"""Core module containing configuration and logging."""
 
 from .config import Settings, settings
-from .container import AppContainer, container
 from .logging import setup_logging
 
-__all__ = ["Settings", "settings", "setup_logging", "AppContainer", "container"]
+__all__ = ["Settings", "settings", "setup_logging"]

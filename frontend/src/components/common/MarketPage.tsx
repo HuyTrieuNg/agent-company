@@ -362,7 +362,7 @@ export default function MarketPage<T>({
                     "flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-(--focus-ring) focus-visible:ring-offset-1",
                     isSelected
                       ? "border-(--border-strong) bg-(--bg-surface) text-(--text-primary) shadow-xs font-semibold"
-                      : "border-transparent bg-(--bg-subtle) text-(--text-secondary) hover:bg-(--bg-surface) hover:text-(--text-primary)"
+                      : "border-(--border-default) bg-(--bg-subtle) text-(--text-secondary) hover:border-(--border-strong) hover:bg-(--bg-surface) hover:text-(--text-primary)"
                   )}
                 >
                   {renderPill(item, isSelected)}

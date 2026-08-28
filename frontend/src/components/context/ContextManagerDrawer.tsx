@@ -1,7 +1,7 @@
 "use client";
 
 import React from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useContextStore } from "@/stores/contextStore";
 import { useUiStore } from "@/stores/uiStore";
 import { Button } from "@/components/ui/button";
@@ -23,12 +23,14 @@ import {
   Eye,
   X,
   Sparkles,
-  Layers,
 } from "lucide-react";
 import { toast } from "sonner";
 
 export default function ContextManagerDrawer() {
   const router = useRouter();
+  const pathname = usePathname();
+  const isChatPage = pathname === "/";
+
   const {
     pinnedArticles,
     removePinnedArticle,
@@ -58,65 +60,44 @@ export default function ContextManagerDrawer() {
 
   return (
     <>
-      {/* Floating Trigger Dock Bar */}
-      {total > 0 && (
+      {/* Floating Trigger Capsule Pill (Hidden on Chat Page) */}
+      {!isChatPage && total > 0 && (
         <aside
           aria-label="Thanh quản lý Context bài báo"
-          className="fixed bottom-4 left-20 right-4 md:left-72 md:right-10 z-40 animate-fade-up"
+          className="fixed bottom-6 right-6 z-40 animate-fade-up"
         >
-          <div className="mx-auto flex max-w-3xl items-center justify-between gap-3 rounded-lg border border-(--border-default) bg-(--bg-surface) p-2.5 px-4 shadow-(--shadow-overlay)">
-            {/* Left info & list preview */}
-            <div
-              className="flex flex-1 items-center gap-3 overflow-hidden cursor-pointer"
+          <div className="flex items-center gap-2 rounded-full border border-(--border-default) bg-(--bg-surface)/95 backdrop-blur-md p-1.5 pl-3 pr-1.5 shadow-(--shadow-overlay) hover:border-(--border-strong) transition-all">
+            {/* Left info area — click to open modal */}
+            <button
               onClick={() => setContextDrawerOpen(true)}
+              className="flex items-center gap-2 cursor-pointer text-left group"
+              title="Mở bảng quản lý chi tiết Context"
             >
-              <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-(--bg-selected) text-(--action-primary)">
-                <Bookmark className="h-4 w-4" />
+              <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-(--bg-selected) text-(--action-primary) group-hover:scale-105 transition-transform">
+                <Bookmark className="h-3.5 w-3.5" />
               </div>
-
-              <div className="flex flex-col min-w-0">
-                <div className="flex items-center gap-2">
-                  <span className="text-xs font-semibold text-(--text-primary)">
-                    Ngữ cảnh ({activeCount}/{total} bài kích hoạt)
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-(--text-primary)">
+                <span>{total} bài ngữ cảnh</span>
+                {activeCount !== total && (
+                  <span className="text-[11px] font-normal text-(--text-tertiary)">
+                    ({activeCount} chọn)
                   </span>
-                  <Badge variant="secondary" className="text-[10px] py-0 px-1.5 bg-(--bg-subtle) text-(--text-secondary)">
-                    Quản lý
-                  </Badge>
-                </div>
-                <div className="flex items-center gap-1.5 overflow-hidden text-[11px] text-(--text-tertiary)">
-                  {pinnedArticles.slice(0, 2).map((a) => (
-                    <span key={a.url_hash || a.url} className="truncate max-w-35 md:max-w-50">
-                      • {a.title}
-                    </span>
-                  ))}
-                  {total > 2 && <span>+{total - 2} bài khác</span>}
-                </div>
+                )}
               </div>
-            </div>
+            </button>
 
-            {/* Actions */}
-            <div className="flex items-center gap-2 shrink-0">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setContextDrawerOpen(true)}
-                className="hidden sm:inline-flex text-xs"
-              >
-                <Layers className="h-3.5 w-3.5" />
-                <span>Chi tiết</span>
-              </Button>
+            <span className="h-4 w-px bg-(--border-default)" />
 
-              <Button
-                variant="default"
-                size="sm"
-                onClick={handleStartChat}
-                className="gap-1.5 text-xs font-semibold"
-              >
-                <Sparkles className="h-3.5 w-3.5" />
-                <span>Chat ngay</span>
-                <ArrowRight className="h-3.5 w-3.5" />
-              </Button>
-            </div>
+            {/* Quick Chat button */}
+            <Button
+              variant="default"
+              size="sm"
+              onClick={handleStartChat}
+              className="h-7 rounded-full px-3 text-xs font-semibold gap-1.5 shadow-xs cursor-pointer"
+            >
+              <Sparkles className="h-3 w-3" />
+              <span>Chat ngay</span>
+            </Button>
           </div>
         </aside>
       )}

@@ -70,6 +70,7 @@ def _make_company_df():
                 "market_cap": 1_500_000_000_000,
                 "pe": 15.2,
                 "pb": 3.5,
+                "ps": 7.4,
                 "eps": 5000.0,
                 "beta": 0.85,
             }

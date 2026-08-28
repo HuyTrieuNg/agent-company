@@ -129,7 +129,9 @@ export interface NewsResponse {
 }
 
 export interface SearchResult {
-  ticker: string;
+  symbol?: string;
+  company_name?: string;
+  ticker?: string;
   organ_name?: string;
   [key: string]: unknown;
 }
