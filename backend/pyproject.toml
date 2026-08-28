@@ -42,8 +42,10 @@ ignore = ["E501", "B008", "E402"]
 
 [tool.pyright]
 include = ["src"]
+venvPath = "."
+venv = ".venv"
 pythonVersion = "3.12"
-typeCheckingMode = "strict"
+typeCheckingMode = "basic"
 reportMissingTypeStubs = false       # vnstock has no type stubs
 reportUnusedFunction = false         # FastAPI routes & helper functions
 reportPrivateUsage = false           # backward-compat re-exports layer

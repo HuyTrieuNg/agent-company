@@ -62,10 +62,12 @@ class StockService:
 
         try:
             from vnstock.api.company import Company
+            from vnstock.api.financial import Finance
             from vnstock.api.trading import Trading
 
             company = Company(source="VCI", symbol=symbol)
             trading = Trading(source="VCI", symbol=symbol)
+            finance_kbs = Finance(source="KBS", symbol=symbol)
 
             # Lấy thông tin công ty
             company_info = await _execute_with_fallback(company.overview)
@@ -112,8 +114,16 @@ class StockService:
                         "market_cap": row.get("market_cap"),
                         "pe_ratio": row.get("pe") or row.get("p_e"),
                         "pb_ratio": row.get("pb") or row.get("p_b"),
+                        "ps_ratio": row.get("ps") or row.get("p_s"),
                         "eps": row.get("eps"),
                         "beta": row.get("beta"),
+                        "avg_volume": row.get("average_match_volume1_month")
+                        or row.get("avg_volume"),
+                        "week_52_high": row.get("highest_price1_year") or row.get("week_52_high"),
+                        "week_52_low": row.get("lowest_price1_year") or row.get("week_52_low"),
+                        "description": str(
+                            row.get("company_profile") or row.get("description") or ""
+                        ),
                     }
                 )
 
@@ -130,20 +140,76 @@ class StockService:
                     else:
                         flat[str(k).lower()] = v
 
+                current_price = (
+                    flat.get("match_price")
+                    or flat.get("last_price")
+                    or flat.get("close")
+                    or overview.get("current_price")
+                )
+                ref_price = flat.get("ref_price") or flat.get("reference_price")
+                price_change = flat.get("price_change") or flat.get("change")
+                price_change_pct = flat.get("pct_change") or flat.get("price_change_pct")
+
+                if price_change is None and current_price is not None and ref_price is not None:
+                    try:
+                        price_change = float(current_price) - float(ref_price)
+                    except (ValueError, TypeError):
+                        pass
+
+                if price_change_pct is None and current_price is not None and ref_price:
+                    try:
+                        price_change_pct = round(
+                            ((float(current_price) - float(ref_price)) / float(ref_price)) * 100, 2
+                        )
+                    except (ValueError, TypeError, ZeroDivisionError):
+                        pass
+
                 overview.update(
                     {
-                        "current_price": flat.get("match_price")
-                        or flat.get("last_price")
-                        or flat.get("close"),
-                        "price_change": flat.get("price_change") or flat.get("change"),
-                        "price_change_pct": flat.get("pct_change") or flat.get("price_change_pct"),
+                        "current_price": current_price,
+                        "price_change": price_change,
+                        "price_change_pct": price_change_pct,
                         "volume": flat.get("accumulated_volume")
                         or flat.get("total_volume")
-                        or flat.get("volume"),
-                        "week_52_high": flat.get("highest_price1_year") or flat.get("week_52_high"),
-                        "week_52_low": flat.get("lowest_price1_year") or flat.get("week_52_low"),
+                        or flat.get("volume")
+                        or overview.get("volume"),
+                        "week_52_high": overview.get("week_52_high")
+                        or flat.get("highest_price1_year")
+                        or flat.get("week_52_high"),
+                        "week_52_low": overview.get("week_52_low")
+                        or flat.get("lowest_price1_year")
+                        or flat.get("week_52_low"),
                     }
                 )
+
+            # Bổ sung chỉ số tài chính từ KBS nếu VCI còn thiếu
+            missing_ratios = any(
+                overview.get(f) is None for f in ("pe_ratio", "pb_ratio", "ps_ratio", "eps", "beta")
+            )
+            if missing_ratios:
+                try:
+                    fr = await _execute_with_fallback(finance_kbs.ratio, period="quarter")
+                    if fr is not None and not fr.empty and "item_id" in fr.columns:
+                        val_cols = [
+                            c for c in fr.columns if c not in ("item", "item_id", "item_en")
+                        ]
+                        latest_col = val_cols[0] if val_cols else None
+                        if latest_col:
+                            ratio_dict = dict(zip(fr["item_id"], fr[latest_col], strict=False))
+                            if overview.get("pe_ratio") is None:
+                                overview["pe_ratio"] = ratio_dict.get("p_e")
+                            if overview.get("pb_ratio") is None:
+                                overview["pb_ratio"] = ratio_dict.get("p_b")
+                            if overview.get("ps_ratio") is None:
+                                overview["ps_ratio"] = ratio_dict.get("p_s")
+                            if overview.get("eps") is None:
+                                overview["eps"] = ratio_dict.get("trailing_eps")
+                            if overview.get("beta") is None:
+                                overview["beta"] = ratio_dict.get("beta")
+                except Exception as ratio_err:
+                    logger.debug(
+                        f"[StockService] Không thể lấy chỉ số định giá KBS cho {symbol}: {ratio_err}"
+                    )
 
             self.cache.set(cache_key, overview)
             return overview
@@ -460,31 +526,50 @@ class StockService:
         """Tìm kiếm mã chứng khoán."""
         from vnstock.api.listing import Listing
 
-        listing = await asyncio.to_thread(Listing(source="KBS").all_symbols)
-        if listing is None or listing.empty:
+        cache_key = "listing_all_symbols"
+        listing_obj = self.cache.get(cache_key)
+        if listing_obj is None:
+            try:
+                listing_obj = await _execute_with_fallback(Listing(source="KBS").all_symbols)
+                if (
+                    listing_obj is not None
+                    and hasattr(listing_obj, "empty")
+                    and not listing_obj.empty
+                ):
+                    self.cache.set(cache_key, listing_obj)
+            except Exception as e:
+                logger.warning(f"[StockService] Lỗi tải danh sách mã chứng khoán: {e}")
+                return []
+
+        listing_df: Any = listing_obj
+        if listing_df is None or not hasattr(listing_df, "empty") or listing_df.empty:
             return []
 
-        q_upper = q.upper()
-        ticker_col = "ticker" if "ticker" in listing.columns else "symbol"
+        q_upper = q.upper().strip()
+        ticker_col = "ticker" if "ticker" in listing_df.columns else "symbol"
         name_col = (
             "organ_name"
-            if "organ_name" in listing.columns
+            if "organ_name" in listing_df.columns
             else "company_name"
-            if "company_name" in listing.columns
+            if "company_name" in listing_df.columns
             else "short_name"
         )
 
-        mask = listing[ticker_col].str.contains(q_upper, case=False, na=False) | listing[
+        mask = listing_df[ticker_col].str.contains(q_upper, case=False, na=False) | listing_df[
             name_col
-        ].str.contains(q, case=False, na=False)
+        ].str.contains(q.strip(), case=False, na=False)
 
-        results = listing[mask].head(10).to_dict("records")
+        results = listing_df[mask].head(10).to_dict("records")
         mapped_results: list[StockSearchResultItem] = []
         for r in results:
+            sym = str(r.get(ticker_col, ""))
+            name = str(r.get(name_col, ""))
             mapped_results.append(
                 {
-                    "symbol": str(r.get(ticker_col, "")),
-                    "company_name": str(r.get(name_col, "")),
+                    "symbol": sym,
+                    "company_name": name,
+                    "ticker": sym,
+                    "organ_name": name,
                 }
             )
         return mapped_results

@@ -193,9 +193,11 @@ class StockTechnicalsResponse(TypedDict, total=False):
     error: str
 
 
-class StockSearchResultItem(TypedDict):
+class StockSearchResultItem(TypedDict, total=False):
     symbol: str
     company_name: str
+    ticker: str
+    organ_name: str
 
 
 class StockSearchResponse(TypedDict):

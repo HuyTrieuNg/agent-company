@@ -330,7 +330,11 @@ async def test_tool_executor_error_result_sent_to_model(mock_get_client):
 # ─────────────────────────────────────────────────────────────
 
 
-@patch("backend.services.qdrant_service.QdrantService.search_articles", new_callable=AsyncMock, return_value=([], False))
+@patch(
+    "backend.services.qdrant_service.QdrantService.search_articles",
+    new_callable=AsyncMock,
+    return_value=([], False),
+)
 @patch("backend.routers.chat.generate_gemini_content_with_tools", new_callable=AsyncMock)
 def test_chat_endpoint_uses_function_calling(mock_tools_fn, mock_search):
     """POST /api/chat calls generate_gemini_content_with_tools (not old generate_gemini_content)."""
@@ -356,7 +360,11 @@ def test_chat_endpoint_uses_function_calling(mock_tools_fn, mock_search):
     mock_tools_fn.assert_called_once()
 
 
-@patch("backend.services.qdrant_service.QdrantService.search_articles", new_callable=AsyncMock, return_value=([], False))
+@patch(
+    "backend.services.qdrant_service.QdrantService.search_articles",
+    new_callable=AsyncMock,
+    return_value=([], False),
+)
 @patch("backend.routers.chat.generate_gemini_content_with_tools", new_callable=AsyncMock)
 def test_chat_endpoint_tool_declarations_passed(mock_tools_fn, mock_search):
     """tool_declarations must be passed from chat router to Gemini service."""
@@ -387,7 +395,11 @@ def test_chat_endpoint_tool_declarations_passed(mock_tools_fn, mock_search):
     assert "get_stock_technicals" in tool_names
 
 
-@patch("backend.services.qdrant_service.QdrantService.search_articles", new_callable=AsyncMock, return_value=([], False))
+@patch(
+    "backend.services.qdrant_service.QdrantService.search_articles",
+    new_callable=AsyncMock,
+    return_value=([], False),
+)
 @patch("backend.routers.chat.generate_gemini_content_with_tools", new_callable=AsyncMock)
 def test_chat_history_grows_correctly_with_tools_flow(mock_tools_fn, mock_search):
     """Response history contains exactly user message + model reply appended."""

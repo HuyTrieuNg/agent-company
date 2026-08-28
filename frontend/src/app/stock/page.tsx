@@ -102,21 +102,27 @@ function SearchBar({
       </form>
       {showDropdown && searchResults.length > 0 && (
         <Card className="absolute z-50 mt-1 w-full p-1 border-(--border-default) bg-(--bg-surface) shadow-lg overflow-hidden rounded-lg">
-          {searchResults.slice(0, 6).map((r) => (
-            <button
-              key={r.ticker}
-              onMouseDown={() => {
-                onSelect(r.ticker);
-                setShowDropdown(false);
-              }}
-              className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-xs text-(--text-primary) hover:bg-(--bg-subtle) transition-colors cursor-pointer"
-            >
-              <Badge variant="secondary" className="font-semibold text-[10px] py-0 font-mono">
-                {r.ticker}
-              </Badge>
-              <span className="text-(--text-secondary) truncate text-xs">{r.organ_name}</span>
-            </button>
-          ))}
+          {searchResults.slice(0, 6).map((r, idx) => {
+            const sym = (r.symbol || r.ticker || "").toUpperCase();
+            const name = r.company_name || r.organ_name || "";
+            return (
+              <button
+                key={sym || idx}
+                onMouseDown={() => {
+                  if (sym) {
+                    onSelect(sym);
+                    setShowDropdown(false);
+                  }
+                }}
+                className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-xs text-(--text-primary) hover:bg-(--bg-subtle) transition-colors cursor-pointer"
+              >
+                <Badge variant="secondary" className="font-semibold text-[10px] py-0 font-mono">
+                  {sym}
+                </Badge>
+                <span className="text-(--text-secondary) truncate text-xs">{name}</span>
+              </button>
+            );
+          })}
         </Card>
       )}
     </div>
