@@ -577,19 +577,21 @@ export default function FinancialsTab({
                 </TableHeader>
 
                 <TableBody className="divide-y divide-(--border-default)">
-                  {visibleRows.map((row, rowIdx) => (
+                  {visibleRows.map((row) => (
                     <TableRow
                       key={row.key}
                       className={cn(
-                        "transition-colors hover:bg-(--bg-subtle)/50",
-                        row.headline ? "bg-(--bg-subtle)/30 font-semibold" : rowIdx % 2 === 1 ? "bg-(--bg-subtle)/15" : "bg-(--bg-surface)"
+                        "group transition-colors hover:bg-(--bg-subtle)",
+                        row.headline ? "bg-(--bg-subtle) font-semibold" : "bg-(--bg-surface)"
                       )}
                     >
                       {/* Item Column Cell: Sticky Left */}
                       <TableCell
                         className={cn(
                           "sticky left-0 z-10 min-w-[240px] max-w-[320px] border-r border-(--border-default) px-3 py-2 transition-colors",
-                          row.headline ? "bg-(--bg-subtle)/60 font-semibold" : rowIdx % 2 === 1 ? "bg-(--bg-subtle)/30" : "bg-(--bg-surface)"
+                          row.headline
+                            ? "bg-(--bg-subtle) group-hover:bg-(--bg-subtle) font-semibold"
+                            : "bg-(--bg-surface) group-hover:bg-(--bg-subtle)"
                         )}
                       >
                         <span
@@ -699,8 +701,8 @@ export default function FinancialsTab({
                     <TableRow
                       key={label + i}
                       className={cn(
-                        "transition-colors hover:bg-(--bg-subtle)/50",
-                        i === 0 ? "bg-(--bg-selected)/20 font-semibold" : i % 2 === 1 ? "bg-(--bg-subtle)/15" : "bg-(--bg-surface)"
+                        "group transition-colors hover:bg-(--bg-subtle)",
+                        i === 0 ? "bg-(--bg-selected)/20 font-semibold" : "bg-(--bg-surface)"
                       )}
                     >
                       {/* Period Column Cell: Sticky Left — latest row highlighted */}
@@ -709,9 +711,7 @@ export default function FinancialsTab({
                           "sticky left-0 z-10 min-w-[150px] border-r border-(--border-default) px-3 py-2.5 whitespace-nowrap text-xs transition-colors",
                           i === 0
                             ? "bg-(--bg-selected) font-bold text-(--action-primary)"
-                            : i % 2 === 1
-                              ? "bg-(--bg-subtle)/30 font-medium text-(--text-secondary)"
-                              : "bg-(--bg-surface) font-medium text-(--text-secondary)"
+                            : "bg-(--bg-surface) group-hover:bg-(--bg-subtle) font-medium text-(--text-secondary)"
                         )}
                       >
                         <span className="inline-flex items-center gap-1.5 tabular-nums">
