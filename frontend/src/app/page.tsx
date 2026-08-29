@@ -35,6 +35,8 @@ import {
   Trash2,
   ArrowRight,
   Database,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -245,6 +247,7 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isContextExpanded, setIsContextExpanded] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -407,62 +410,105 @@ export default function ChatPage() {
         )}
 
         {/* Evidence / Pinned Context Tray above Input */}
-        {pinnedArticles.length > 0 && (
-          <Card className="mb-3 flex items-center justify-between rounded-lg border border-(--border-default) bg-(--bg-subtle) p-2 px-3.5">
-            <div className="flex flex-wrap items-center gap-1.5 overflow-hidden">
-              <span className="text-[11px] font-semibold text-(--text-secondary) flex items-center gap-1 shrink-0">
-                <Bookmark className="h-3 w-3 text-(--action-primary)" />
-                Ngữ cảnh gửi kèm ({activePinned.length} bài):
-              </span>
-              {pinnedArticles.map((art) => {
-                const key = art.url_hash || art.url || "";
-                const isActive = art.isActiveInPrompt !== false;
-                return (
-                  <Badge
-                    key={key}
-                    variant={isActive ? "default" : "secondary"}
-                    className={`gap-1 text-[10px] py-0.5 px-2 font-normal rounded-md ${
-                      isActive
-                        ? "bg-(--bg-surface) text-(--text-primary) border border-(--border-default)"
-                        : "opacity-50 line-through bg-(--bg-subtle) text-(--text-tertiary)"
-                    }`}
-                  >
-                    <span className="max-w-[130px] truncate">{art.title}</span>
-                    <button
-                      onClick={() => removePinnedArticle(key)}
-                      className="text-(--text-tertiary) hover:text-(--status-negative) ml-1 cursor-pointer"
-                      title="Gỡ bài báo này"
-                      aria-label={`Gỡ bài báo ${art.title}`}
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </Badge>
-                );
-              })}
-            </div>
+        {pinnedArticles.length > 0 && (() => {
+          const maxCollapsed = 2;
+          const visibleArticles = isContextExpanded
+            ? pinnedArticles
+            : pinnedArticles.slice(0, maxCollapsed);
+          const remainingCount = pinnedArticles.length - visibleArticles.length;
 
-            <div className="flex items-center gap-2 shrink-0 ml-2">
-              <Button
-                variant="link"
-                size="sm"
-                onClick={() => setContextDrawerOpen(true)}
-                className="h-auto p-0 text-[11px] text-(--action-primary) hover:underline"
+          return (
+            <Card
+              className={`mb-3 flex rounded-lg border border-(--border-default) bg-(--bg-subtle) p-2 px-3.5 transition-all ${
+                isContextExpanded
+                  ? "flex-col sm:flex-row sm:items-start justify-between gap-2.5"
+                  : "items-center justify-between gap-2"
+              }`}
+            >
+              <div
+                className={`min-w-0 flex-1 flex items-center gap-1.5 ${
+                  isContextExpanded ? "flex-wrap" : "overflow-hidden flex-nowrap"
+                }`}
               >
-                Quản lý
-              </Button>
-              <span className="text-(--border-default) text-xs">•</span>
-              <Button
-                variant="link"
-                size="sm"
-                onClick={clearPinnedArticles}
-                className="h-auto p-0 text-[11px] text-(--text-tertiary) hover:text-(--status-negative)"
-              >
-                <Trash2 className="h-3 w-3 mr-0.5" />
-                Xóa hết
-              </Button>
-            </div>
-          </Card>
-        )}
+                <span className="text-[11px] font-semibold text-(--text-secondary) flex items-center gap-1 shrink-0">
+                  <Bookmark className="h-3 w-3 text-(--action-primary)" />
+                  Ngữ cảnh ({activePinned.length} bài):
+                </span>
+
+                {visibleArticles.map((art) => {
+                  const key = art.url_hash || art.url || "";
+                  const isActive = art.isActiveInPrompt !== false;
+                  return (
+                    <Badge
+                      key={key}
+                      variant={isActive ? "default" : "secondary"}
+                      className={`gap-1 text-[10px] py-0.5 px-2 font-normal rounded-md shrink-0 ${
+                        isActive
+                          ? "bg-(--bg-surface) text-(--text-primary) border border-(--border-default)"
+                          : "opacity-50 line-through bg-(--bg-subtle) text-(--text-tertiary)"
+                      }`}
+                    >
+                      <span className="max-w-[120px] md:max-w-[160px] truncate">{art.title}</span>
+                      <button
+                        onClick={() => removePinnedArticle(key)}
+                        className="text-(--text-tertiary) hover:text-(--status-negative) ml-1 cursor-pointer"
+                        title="Gỡ bài báo này"
+                        aria-label={`Gỡ bài báo ${art.title}`}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </Badge>
+                  );
+                })}
+
+                {!isContextExpanded && remainingCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setIsContextExpanded(true)}
+                    className="inline-flex shrink-0 items-center gap-0.5 rounded-md bg-(--bg-surface) px-2 py-0.5 text-[10px] font-medium text-(--action-primary) border border-(--border-default) hover:bg-(--bg-subtle) hover:border-(--border-strong) cursor-pointer transition-colors"
+                    title="Xem tất cả bài báo trong ngữ cảnh"
+                  >
+                    +{remainingCount} bài khác
+                    <ChevronDown className="h-3 w-3" />
+                  </button>
+                )}
+
+                {isContextExpanded && pinnedArticles.length > maxCollapsed && (
+                  <button
+                    type="button"
+                    onClick={() => setIsContextExpanded(false)}
+                    className="inline-flex shrink-0 items-center gap-0.5 rounded-md bg-(--bg-surface) px-2 py-0.5 text-[10px] font-medium text-(--text-secondary) border border-(--border-default) hover:bg-(--bg-subtle) hover:text-(--text-primary) cursor-pointer transition-colors"
+                    title="Thu gọn danh sách"
+                  >
+                    Thu gọn
+                    <ChevronUp className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0 self-center sm:self-auto">
+                <Button
+                  variant="link"
+                  size="sm"
+                  onClick={() => setContextDrawerOpen(true)}
+                  className="h-auto p-0 text-[11px] text-(--action-primary) hover:underline cursor-pointer"
+                >
+                  Quản lý
+                </Button>
+                <span className="text-(--border-default) text-xs">•</span>
+                <Button
+                  variant="link"
+                  size="sm"
+                  onClick={clearPinnedArticles}
+                  className="h-auto p-0 text-[11px] text-(--text-tertiary) hover:text-(--status-negative) cursor-pointer"
+                >
+                  <Trash2 className="h-3 w-3 mr-0.5" />
+                  Xóa hết
+                </Button>
+              </div>
+            </Card>
+          );
+        })()}
 
         {/* Input Form */}
         <form

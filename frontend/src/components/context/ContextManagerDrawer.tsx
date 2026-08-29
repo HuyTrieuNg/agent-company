@@ -64,7 +64,7 @@ export default function ContextManagerDrawer() {
       {!isChatPage && total > 0 && (
         <aside
           aria-label="Thanh quản lý Context bài báo"
-          className="fixed bottom-6 right-6 z-40 animate-fade-up"
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 animate-fade-up"
         >
           <div className="flex items-center gap-2 rounded-full border border-(--border-default) bg-(--bg-surface)/95 backdrop-blur-md p-1.5 pl-3 pr-1.5 shadow-(--shadow-overlay) hover:border-(--border-strong) transition-all">
             {/* Left info area — click to open modal */}
